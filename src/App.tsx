@@ -11,6 +11,7 @@ import HowItWorks from "./pages/HowItWorks";
 import Pricing from "./pages/Pricing";
 import Contact from "./pages/Contact";
 import Auth from "./pages/Auth";
+import AuthCallback from "./pages/AuthCallback"; // ✅ NEW: Import AuthCallback
 import Terms from "./pages/Terms";
 import Disclaimer from "./pages/Disclaimer";
 import Privacy from "./pages/Privacy";
@@ -39,6 +40,7 @@ const App = () => (
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/auth/callback" element={<AuthCallback />} /> {/* ✅ NEW: Google OAuth callback route */}
               <Route path="/terms" element={<Terms />} />
               <Route path="/disclaimer" element={<Disclaimer />} />
               <Route path="/privacy" element={<Privacy />} />
