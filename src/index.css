@@ -1,0 +1,536 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 224 76% 48%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 224 76% 48%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 210 40% 98%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 224 76% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 224 76% 48%;
+
+    /* Extended palette */
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+    --warning: 25 95% 53%;
+    --warning-foreground: 0 0% 100%;
+    --violet: 262 83% 58%;
+    --violet-foreground: 0 0% 100%;
+    --royal-blue: 224 76% 48%;
+    --electric-blue: 217 91% 60%;
+
+    /* Gold Standard palette */
+    --gold: 43 74% 52%;
+    --gold-foreground: 222 47% 11%;
+    --gold-light: 43 80% 90%;
+    --gold-dark: 43 74% 40%;
+    --champagne: 42 100% 97%;
+    --navy: 222 47% 11%;
+
+    /* Casino palette */
+    --casino-green: 162 89% 20%;
+    --casino-green-light: 160 40% 35%;
+    --casino-felt: 155 50% 18%;
+    --casino-gold: 43 74% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  h1, h2, h3 {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: rgba(255, 255, 255, 0.70);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Casino glassmorphism — lighter opacity on dark bg + Sands Gold shadow */
+.glass-casino {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 24px -6px hsl(43 74% 52% / 0.18);
+}
+
+/* Gold glassmorphism */
+.glass-gold {
+  background: rgba(255, 253, 245, 0.80);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid hsl(43 74% 52% / 0.25);
+  box-shadow: 0 4px 20px -4px hsl(43 74% 52% / 0.10);
+}
+
+/* Primary gradient button */
+.btn-gradient {
+  background: linear-gradient(135deg, hsl(224, 76%, 48%), hsl(243, 75%, 59%));
+  color: white;
+  transition: all 0.2s;
+}
+.btn-gradient:hover {
+  background: linear-gradient(135deg, hsl(224, 76%, 42%), hsl(243, 75%, 53%));
+  box-shadow: 0 4px 15px -3px hsla(224, 76%, 48%, 0.4);
+}
+
+/* Gold gradient button — Metallic Gold #D4AF37 → Light Gold #F7EF8A */
+.btn-gold {
+  background: linear-gradient(135deg, #D4AF37, #F7EF8A);
+  color: hsl(222, 47%, 11%);
+  font-weight: 700;
+  transition: all 0.2s;
+}
+.btn-gold:hover {
+  background: linear-gradient(135deg, #c9a22e, #f5eb7a);
+  box-shadow: 0 4px 18px -3px hsl(43 74% 52% / 0.5);
+}
+
+/* Casino gradient button */
+.btn-casino {
+  background: linear-gradient(135deg, hsl(43, 74%, 52%), hsl(43, 80%, 60%));
+  color: hsl(222, 47%, 11%);
+  font-weight: 700;
+  transition: all 0.2s;
+}
+.btn-casino:hover {
+  background: linear-gradient(135deg, hsl(43, 74%, 58%), hsl(43, 80%, 66%));
+  box-shadow: 0 4px 18px -3px hsl(43 74% 52% / 0.5);
+}
+
+/* Felt texture for casino cards */
+.felt-card {
+  background: hsl(155 50% 18%);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3), 0 4px 20px -4px rgba(0, 0, 0, 0.4);
+  border: 1px solid hsl(155 40% 25%);
+}
+
+/* Gold border card */
+.gold-card {
+  background: rgba(255, 253, 245, 0.90);
+  border: 1px solid hsl(43 74% 52% / 0.35);
+  box-shadow: 0 4px 20px -6px hsl(43 74% 52% / 0.15);
+}
+
+@keyframes scroll-left {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-scroll-left {
+  animation: scroll-left 30s linear infinite;
+}
+
+.animate-scroll-left-slow {
+  animation: scroll-left 38s linear infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+.animate-float-gift {
+  animation: float 3.5s ease-in-out 0.8s infinite;
+  will-change: transform;
+}
+
+@keyframes roam-tl-br {
+  0%   { top: 80px;  left: 16px; }
+  25%  { top: 60vh;  left: 50vw; }
+  50%  { top: calc(100vh - 120px); left: calc(100vw - 180px); }
+  75%  { top: 40vh;  left: 30vw; }
+  100% { top: 80px;  left: 16px; }
+}
+
+@keyframes roam-bl-tr {
+  0%   { bottom: 24px; left: 16px; top: auto; }
+  25%  { bottom: 50vh; left: 40vw; top: auto; }
+  50%  { bottom: auto; top: 80px; left: calc(100vw - 180px); }
+  75%  { bottom: 30vh; left: 60vw; top: auto; }
+  100% { bottom: 24px; left: 16px; top: auto; }
+}
+
+.animate-roam-1 {
+  animation: roam-tl-br 18s ease-in-out infinite;
+  will-change: top, left;
+}
+
+.animate-roam-2 {
+  animation: roam-bl-tr 22s ease-in-out 1s infinite;
+  will-change: top, left, bottom;
+}
+
+.animate-float-gift:hover,
+.animate-roam-1:hover,
+.animate-roam-2:hover {
+  animation-play-state: paused;
+}
+
+/* Casino background pattern (roulette inspired) */
+.casino-bg-pattern {
+  background-image:
+    radial-gradient(ellipse at 20% 50%, hsl(160 40% 25% / 0.6) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, hsl(43 74% 52% / 0.08) 0%, transparent 40%),
+    radial-gradient(ellipse at 60% 80%, hsl(160 40% 22% / 0.4) 0%, transparent 50%),
+    radial-gradient(circle at 50% 0%, hsl(43 74% 52% / 0.05) 0%, transparent 30%);
+}
+
+/* Roulette decorative ring */
+.roulette-ring {
+  border: 3px solid hsl(43 74% 52% / 0.3);
+  border-radius: 50%;
+  box-shadow:
+    0 0 20px hsl(43 74% 52% / 0.1),
+    inset 0 0 20px hsl(43 74% 52% / 0.05);
+}
+
+/* ── Print styles for AI Report ── */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 5mm;
+  }
+
+  /* Hide non-report elements */
+  nav, footer, .no-print, .glass-casino,
+  button, a[href], .btn-casino, .btn-gold, .btn-gradient,
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Pure white background, black text globally */
+  *, *::before, *::after {
+    background: transparent !important;
+    color: black !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body, html {
+    background: white !important;
+    overflow: hidden !important;
+    height: auto !important;
+  }
+
+  /* ── Report container: compact, no padding waste ── */
+  .print-report {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 1px !important;
+    overflow: hidden !important;
+    page-break-after: avoid;
+  }
+
+  .print-report > * {
+    margin-bottom: 2px !important;
+  }
+
+  /* Borders for structure */
+  .print-report > div {
+    border: 1px solid #d1d5db !important;
+    background: white !important;
+    padding: 4px 6px !important;
+  }
+
+  /* ── Header card: side-by-side icon + text ── */
+  .print-header-card {
+    padding: 4px 6px !important;
+    margin-bottom: 1px !important;
+    border: 1px solid #e5e7eb !important;
+  }
+
+  .print-header-card > .flex.items-center {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+
+  .print-header-card img {
+    width: 80px !important;
+    height: 80px !important;
+    border: 1px solid #d1d5db !important;
+  }
+
+  .print-header-card h2 {
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+    color: black !important;
+    font-weight: 800 !important;
+  }
+
+  .print-header-card p,
+  .print-header-card .text-xs:not(.print-method-badge) {
+    font-size: 7px !important;
+    line-height: 1.15 !important;
+    color: black !important;
+  }
+
+  /* Methodology badge — plain text in print */
+  .print-method-badge {
+    display: block !important;
+    font-size: 14pt !important;
+    line-height: 1.3 !important;
+    color: #000000 !important;
+    font-weight: 700 !important;
+    background: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin-top: 3px !important;
+  }
+
+  /* Hide screen-only elements in print */
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Hide language selector in print */
+  .print-lang-toggle {
+    display: none !important;
+  }
+
+  /* Show bio/description in print but compact */
+  .print-hide-detail {
+    display: block !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 2px 0 !important;
+    margin-top: 2px !important;
+  }
+
+  .print-hide-detail p,
+  .print-hide-detail span {
+    font-size: 8px !important;
+    line-height: 1.2 !important;
+    color: #222 !important;
+  }
+
+  /* Hide simulation power stars — keep only bio */
+  .print-hide-simpower {
+    display: none !important;
+  }
+
+  /* ── Config summary: compact ── */
+  .print-config-summary {
+    padding: 3px 6px !important;
+    margin-bottom: 1px !important;
+  }
+
+  .print-config-summary span,
+  .print-config-summary div {
+    font-size: 8px !important;
+    line-height: 1.2 !important;
+  }
+
+  /* ── Number prediction grid: maximize space ── */
+  .print-report .grid {
+    gap: 2px !important;
+    page-break-inside: avoid;
+  }
+
+  .print-prediction-set {
+    padding: 2px 4px !important;
+    border: 1px solid #d1d5db !important;
+  }
+
+  /* ── Number balls: colored, bold white text ── */
+  .print-report .rounded-full[class*="bg-"] {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color: white !important;
+    font-weight: 800 !important;
+    width: 24px !important;
+    height: 24px !important;
+    font-size: 10px !important;
+    border: 1.5px solid #000 !important;
+  }
+
+  /* Banker numbers: thicker gold border in print */
+  .print-report .rounded-full[class*="ring-amber"] {
+    border: 2.5px solid #d4af37 !important;
+    box-shadow: 0 0 0 1px #d4af37 !important;
+  }
+
+  .print-report .bg-red-500,
+  .print-report .bg-red-600   { background-color: #ef4444 !important; color: white !important; }
+  .print-report .bg-blue-500,
+  .print-report .bg-blue-600  { background-color: #3b82f6 !important; color: white !important; }
+  .print-report .bg-green-500,
+  .print-report .bg-green-600,
+  .print-report .bg-emerald-500 { background-color: #22c55e !important; color: white !important; }
+
+  /* Labels in config summary */
+  .print-report .text-amber-300,
+  .print-report .text-amber-400 {
+    color: #000 !important;
+    font-weight: 700 !important;
+  }
+
+  /* ── Hide action buttons & links ── */
+  .print-report .flex.flex-wrap.items-center.justify-center,
+  .print-report a[href] {
+    display: none !important;
+  }
+
+  /* ── Frequency Analysis: print-only plain HTML ── */
+  .print-freq-section {
+    display: block !important;
+    padding: 4px 6px !important;
+    border: 1px solid #d1d5db !important;
+    page-break-inside: avoid;
+  }
+
+  .print-freq-title {
+    font-size: 11px !important;
+    font-weight: 800 !important;
+    color: #000 !important;
+    margin: 0 0 1px 0 !important;
+    text-align: left !important;
+  }
+
+  .print-freq-desc {
+    font-size: 7px !important;
+    color: #555 !important;
+    margin: 0 0 3px 0 !important;
+  }
+
+  .print-freq-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1px !important;
+  }
+
+  .print-freq-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    height: 10px !important;
+  }
+
+  .print-freq-num {
+    width: 20px !important;
+    font-size: 8px !important;
+    font-weight: 800 !important;
+    color: #000 !important;
+    text-align: right !important;
+    flex-shrink: 0 !important;
+  }
+
+  .print-freq-bar-bg {
+    flex: 1 !important;
+    height: 6px !important;
+    background: #e5e7eb !important;
+    border-radius: 2px !important;
+    overflow: hidden !important;
+  }
+
+  .print-freq-bar-fill {
+    height: 100% !important;
+    background: #9ca3af !important;
+    border-radius: 2px !important;
+  }
+
+  .print-freq-count {
+    width: 22px !important;
+    font-size: 7px !important;
+    font-weight: 700 !important;
+    color: #000 !important;
+    text-align: left !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* ── Warning + footer combined row ── */
+  .print-warning-footer {
+    font-size: 6px !important;
+    line-height: 1.1 !important;
+    padding: 2px 4px !important;
+    border: none !important;
+    margin-top: 2px !important;
+    page-break-inside: avoid;
+  }
+
+  .print-warning-footer p {
+    color: #000 !important;
+    font-weight: 700 !important;
+  }
+
+  .print-footer-line {
+    font-size: 7px !important;
+    margin-top: 1px !important;
+  }
+
+  /* ── Frequency labels: tighter for single page ── */
+  .print-freq-num {
+    font-size: 7px !important;
+  }
+
+  .print-freq-count {
+    font-size: 6px !important;
+  }
+
+  .print-freq-row {
+    height: 9px !important;
+  }
+
+  /* A4 layout with tight margins */
+  @page {
+    size: A4;
+    margin: 6mm;
+  }
+}
