@@ -11,7 +11,7 @@ import HowItWorks from "./pages/HowItWorks";
 import Pricing from "./pages/Pricing";
 import Contact from "./pages/Contact";
 import Auth from "./pages/Auth";
-import AuthCallback from "./pages/AuthCallback"; // ✅ NEW: Import AuthCallback
+import AuthCallback from "./pages/AuthCallback";
 import Terms from "./pages/Terms";
 import Disclaimer from "./pages/Disclaimer";
 import Privacy from "./pages/Privacy";
@@ -21,6 +21,7 @@ import AIStocks from "./pages/AIStocks";
 import Watchlist from "./pages/Watchlist";
 import AIGames from "./pages/AIGames";
 import Dashboard from "./pages/Dashboard";
+import PaymentSuccess from "./pages/PaymentSuccess"; // ✅ NEW
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,7 +41,7 @@ const App = () => (
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/auth" element={<Auth />} />
-              <Route path="/auth/callback" element={<AuthCallback />} /> {/* ✅ NEW: Google OAuth callback route */}
+              <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/disclaimer" element={<Disclaimer />} />
               <Route path="/privacy" element={<Privacy />} />
@@ -50,7 +51,7 @@ const App = () => (
               <Route path="/watchlist" element={<Watchlist />} />
               <Route path="/ai-games" element={<AIGames />} />
               <Route path="/dashboard" element={<Dashboard />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="/payment-success" element={<PaymentSuccess />} /> {/* ✅ NEW */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
