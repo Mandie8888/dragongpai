@@ -9,9 +9,9 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useLanguage, type LangKey } from "@/contexts/LanguageContext";
 
 const navLabels = {
-  en: ["Home", "About us", "How it Works", "AI Stocks", "My Watchlist", "AI Games"],
-  tc: ["首頁", "關於我們", "運作方式", "AI 股票", "我的關注", "AI 遊戲"],
-  sc: ["首页", "关于我们", "运作方式", "AI 股票", "我的关注", "AI 游戏"],
+  en: ["Home", "About us", "How it Works", "AI Stocks", "My Watchlist", "AI Mark6/Lotto"],
+  tc: ["首頁", "關於我們", "運作方式", "AI 股票", "我的關注", "AI 六合彩/大樂透"],
+  sc: ["首页", "关于我们", "运作方式", "AI 股票", "我的关注", "AI 六合彩/大乐透"],
 };
 const navHrefs = ["/", "/about", "/how-it-works", "/ai-stocks", "/watchlist", "/ai-games"];
 

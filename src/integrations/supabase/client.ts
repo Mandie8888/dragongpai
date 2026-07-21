@@ -1,5 +1,8 @@
+// src/integrations/supabase/client.ts
+console.log('🚀 client.ts loaded on:', window.location.href);
 import { createClient } from '@supabase/supabase-js';
 
+// ✅ Only use VITE_ variables (since this is a Vite app)
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 

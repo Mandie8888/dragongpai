@@ -6,7 +6,7 @@ import { useLanguage, type LangKey } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCredits } from "@/hooks/useCredits";
 import { supabase } from "@/integrations/supabase/client";
-import { Coins, Shield, Play, TrendingUp, Gamepad2, Download, FileText, Sparkles, Zap, BarChart3 } from "lucide-react";
+import { Coins, Shield, Play, TrendingUp, Gamepad2, Download, FileText, Sparkles, Zap, BarChart3, ChevronDown } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import { useToast } from "@/hooks/use-toast";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
@@ -14,9 +14,6 @@ import GamingDisclaimerModal from "@/components/ai-games/GamingDisclaimerModal";
 import Mark6FullReport from "@/components/ai-games/Mark6FullReport";
 import CharacterProfileModal from "@/components/ai-games/CharacterProfileModal";
 import {
-  historicalDraws,
-  getBallColor,
-  computeFrequency,
   allCharacters,
   mark6Labels,
   type CharacterModel,
@@ -46,6 +43,8 @@ const avatarMap: Record<string, string> = {
 
 const langKeys: LangKey[] = ["en", "tc", "sc"];
 
+type LottoType = "hk" | "tw";
+
 const Glass = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
   <div className={`rounded-xl glass-casino shadow-lg p-5 ${className}`}>
     {children}
@@ -67,10 +66,10 @@ const AIGames = () => {
   const [showReport, setShowReport] = useState(false);
   const [profileChar, setProfileChar] = useState<CharacterModel | null>(null);
   const [showProfile, setShowProfile] = useState(false);
-  
+  const [lottoType, setLottoType] = useState<LottoType>("hk");
+  const [showHowToUse, setShowHowToUse] = useState(false);
 
   const hasAccess = subscription.subscribed || credits > 0 || creditsLoading;
-  const frequency = computeFrequency();
 
   const isStartEnabled = !!activeCharacterId && !!activeConfig;
 
@@ -82,23 +81,19 @@ const AIGames = () => {
 
   const handleStartGame = () => {
     if (!isStartEnabled) return;
-    // Check 1: Auth
     if (!user) {
       navigate("/auth?returnTo=/ai-games");
       return;
     }
-    // Check 2: Credits
     if (!hasAccess) {
       setShowCreditsModal(true);
       return;
     }
-    // Show Gaming Strategy Disclaimer
     setShowGamingDisclaimer(true);
   };
 
   const handleDisclaimerAccept = async () => {
     setShowGamingDisclaimer(false);
-    // Deduct 1 credit via secure server-side function
     if (!subscription.subscribed && user) {
       const { error } = await supabase.rpc("deduct_credit", { p_report_type: "game" });
       if (error) {
@@ -109,7 +104,6 @@ const AIGames = () => {
       refetchCredits();
     }
 
-    // Save to analysis_history for dashboard
     if (user && activeChar) {
       await supabase.from("analysis_history").insert({
         user_id: user.id,
@@ -117,7 +111,7 @@ const AIGames = () => {
         model_used: activeChar.name.en,
         symbol: null,
         status: "completed",
-        report_data: { character: activeChar.id, config: activeConfig } as any,
+        report_data: { character: activeChar.id, config: activeConfig, lottoType } as any,
       });
     }
     
@@ -128,13 +122,22 @@ const AIGames = () => {
     setShowGamingDisclaimer(false);
   };
 
-
   const handleCharacterSelect = (id: string, config: CharacterConfig) => {
     setActiveCharacterId(id);
     setActiveConfig(config);
   };
 
   const activeChar = allCharacters.find((c) => c.id === activeCharacterId);
+
+  const getLottoTitle = () => {
+    if (lang === "en") {
+      return "AI Mark6 and TW Big Lotto";
+    } else if (lang === "tc") {
+      return "AI 六合彩及台灣大樂透";
+    } else {
+      return "AI 六合彩及台湾大乐透";
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col text-white casino-bg-pattern" style={{ background: 'linear-gradient(160deg, hsl(162 89% 16%) 0%, hsl(155 50% 18%) 40%, hsl(162 89% 20%) 70%, hsl(155 60% 14%) 100%)' }}>
@@ -149,19 +152,9 @@ const AIGames = () => {
           <Mark6FullReport character={activeChar} config={activeConfig} onReset={handleReset} />
         ) : (
           <>
-
-            {/* ── Free Credits Promo ── */}
-            <section className="mx-4 md:mx-6 mt-3">
-              <div className="rounded-xl glass-casino p-3 text-center border border-casino-gold/20">
-                <p className="text-sm font-bold text-casino-gold">
-                  🎁 {lang === "en" ? "Happy Lunar New Year! Register now for 10 days of free trial credits — includes both AI Stocks & AI Games!" : lang === "tc" ? "賀新禧、慶元宵！現在註冊即可獲得 10 天免費體驗積分，包含 AI 股票與 AI 遊戲功能！" : "贺新禧、庆元宵！现在注册即可获得 10 天免费体验积分，包含 AI 股票与 AI 游戏功能！"}
-                </p>
-              </div>
-            </section>
-
             {/* ── Hero ── */}
             <section className="pt-6 pb-4 px-4 md:px-6 text-center space-y-4">
-              <h1 className="text-3xl md:text-4xl font-extrabold text-casino-gold">{t.title}</h1>
+              <h1 className="text-3xl md:text-4xl font-extrabold text-casino-gold">{getLottoTitle()}</h1>
               <p className="text-white/80 text-lg md:text-2xl font-bold italic">{t.subtitle}</p>
 
               {user && (
@@ -190,6 +183,30 @@ const AIGames = () => {
                     </button>
                   </span>
                 ))}
+              </div>
+
+              {/* Lotto Type Selector */}
+              <div className="flex items-center justify-center gap-3 mt-2">
+                <button
+                  onClick={() => setLottoType("hk")}
+                  className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
+                    lottoType === "hk"
+                      ? "btn-casino shadow-lg"
+                      : "bg-white/10 text-white/60 hover:text-white hover:bg-white/20"
+                  }`}
+                >
+                  {lang === "en" ? "HK Mark6" : lang === "tc" ? "香港六合彩" : "香港六合彩"}
+                </button>
+                <button
+                  onClick={() => setLottoType("tw")}
+                  className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
+                    lottoType === "tw"
+                      ? "btn-casino shadow-lg"
+                      : "bg-white/10 text-white/60 hover:text-white hover:bg-white/20"
+                  }`}
+                >
+                  {lang === "en" ? "TW Big Lotto" : lang === "tc" ? "台灣大樂透" : "台湾大乐透"}
+                </button>
               </div>
 
               <p className="text-casino-gold text-sm font-medium italic">{t.whichGenius}</p>
@@ -247,7 +264,7 @@ const AIGames = () => {
                   <EmptyState
                     icon={<Gamepad2 size={32} className="text-primary" />}
                     title={lang === "en" ? "You haven't run any analyses yet!" : lang === "tc" ? "您尚未進行任何分析！" : "您尚未进行任何分析！"}
-                    subtitle={lang === "en" ? "Choose an AI Partner above to begin your Mark 6 probability analysis." : lang === "tc" ? "請從上方選擇一位 AI 夥伴，開始您的 Mark 6 概率分析。" : "请从上方选择一位 AI 伙伴，开始您的 Mark 6 概率分析。"}
+                    subtitle={lang === "en" ? "Choose an AI Partner above to begin your probability analysis." : lang === "tc" ? "請從上方選擇一位 AI 夥伴，開始您的概率分析。" : "请从上方选择一位 AI 伙伴，开始您的概率分析。"}
                   />
                 ) : (
                   <>
@@ -273,102 +290,51 @@ const AIGames = () => {
               </Glass>
             </section>
 
-
-            {/* ── Frequency Heatmap (Mark 6 Balls) ── */}
+            {/* ── How to Use AI Predictions (Collapsible) ── */}
             <section className="max-w-3xl w-full mx-auto px-4 md:px-6 mb-8">
               <Glass>
-                <h3 className="font-bold text-casino-gold text-sm mb-3">{t.heatmapTitle}</h3>
-                <div className="grid grid-cols-7 gap-1.5 md:gap-2">
-                  {Array.from({ length: 49 }, (_, i) => i + 1).map((n) => {
-                    const freq = frequency.get(n) || 0;
-                    return (
-                      <div key={n} className="flex flex-col items-center">
-                        <div className={`w-8 h-8 md:w-9 md:h-9 rounded-full ${getBallColor(n)} text-white text-[10px] md:text-xs font-bold flex items-center justify-center shadow-md`}>
-                          {n}
-                        </div>
-                        <span className="text-[8px] md:text-[9px] text-white/50 mt-0.5">{freq}</span>
+                <button
+                  onClick={() => setShowHowToUse(!showHowToUse)}
+                  className="w-full flex items-center justify-between group"
+                >
+                  <h3 className="font-bold text-casino-gold text-base text-center flex-1">
+                    {lang === "en" ? "How to Use AI Predictions" : lang === "tc" ? "如何使用 AI 預測" : "如何使用 AI 预测"}
+                  </h3>
+                  <div className={`transform transition-transform duration-300 ${showHowToUse ? "rotate-180" : ""}`}>
+                    <ChevronDown size={20} className="text-casino-gold" />
+                  </div>
+                </button>
+                
+                <div className={`overflow-hidden transition-all duration-300 ${showHowToUse ? "max-h-[800px] opacity-100 mt-4" : "max-h-0 opacity-0"}`}>
+                  <p className="text-[10px] text-white/50 text-center mb-4">
+                    {lang === "en" ? "3 simple steps to get your AI-powered predictions" : lang === "tc" ? "3 個簡單步驟獲取 AI 預測號碼" : "3 个简单步骤获取 AI 预测号码"}
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {[
+                      {
+                        icon: <Gamepad2 size={20} className="text-amber-400" />,
+                        title: { en: "Choose AI Model", tc: "選擇 AI 模型", sc: "选择 AI 模型" },
+                        desc: { en: "Pick your favourite AI prediction partner from the 8 geniuses above.", tc: "從上方 8 位天才中選擇您喜歡的 AI 預測夥伴。", sc: "从上方 8 位天才中选择您喜欢的 AI 预测伙伴。" },
+                      },
+                      {
+                        icon: <BarChart3 size={20} className="text-emerald-400" />,
+                        title: { en: "Generate Numbers", tc: "生成號碼", sc: "生成号码" },
+                        desc: { en: "AI runs advanced simulations based on mathematical models and pattern analysis.", tc: "AI 會根據數學模型和模式分析進行高級模擬。", sc: "AI 会根据数学模型和模式分析进行高级模拟。" },
+                      },
+                      {
+                        icon: <Sparkles size={20} className="text-violet-400" />,
+                        title: { en: "Get Inspiration", tc: "獲取靈感", sc: "获取灵感" },
+                        desc: { en: "Download your personalised prediction report with recommended number sets.", tc: "下載您的專屬預測報告與推薦號碼組合。", sc: "下载您的专属预测报告与推荐号码组合。" },
+                      },
+                    ].map((s, i) => (
+                      <div key={i} className="rounded-lg felt-card p-4 space-y-2 text-center">
+                        <div className="mx-auto w-10 h-10 rounded-full bg-casino-gold/15 flex items-center justify-center">{s.icon}</div>
+                        <div className="text-xs font-bold text-casino-gold">Step {i + 1}</div>
+                        <h4 className="text-sm font-bold text-white">{s.title[lang]}</h4>
+                        <p className="text-[11px] text-white/50 leading-relaxed">{s.desc[lang]}</p>
                       </div>
-                    );
-                  })}
-                </div>
-                <div className="flex items-center justify-between mt-3 text-[10px] text-white/50">
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500" /> {t.hot}</span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-500" /> {t.cold}</span>
-                </div>
-              </Glass>
-            </section>
-
-            {/* ── Historical Draws ── */}
-            <section className="max-w-3xl w-full mx-auto px-4 md:px-6 mb-8">
-              <Glass>
-                <h3 className="font-bold text-casino-gold text-sm mb-3">{t.historicalTitle}</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-white/10">
-                        <th className="text-left py-2 text-white/50 font-medium">{t.drawId}</th>
-                        <th className="text-left py-2 text-white/50 font-medium">{t.date}</th>
-                        <th className="text-left py-2 text-white/50 font-medium">{t.numbers}</th>
-                        <th className="text-center py-2 text-white/50 font-medium">{t.extra}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {historicalDraws.map((draw) => (
-                        <tr key={draw.id} className="border-b border-white/5">
-                          <td className="py-2 text-white font-medium">{draw.id}</td>
-                          <td className="py-2 text-white/50">{draw.date}</td>
-                          <td className="py-2">
-                            <div className="flex gap-1">
-                              {draw.numbers.map((n) => (
-                                <span key={n} className={`w-6 h-6 rounded-full ${getBallColor(n)} text-white text-[10px] font-bold flex items-center justify-center`}>{n}</span>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="py-2 text-center">
-                            <span className={`w-6 h-6 rounded-full ${getBallColor(draw.extra)} text-white text-[10px] font-bold inline-flex items-center justify-center`}>{draw.extra}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Glass>
-            </section>
-
-            {/* ── How to Use AI Predictions ── */}
-            <section className="max-w-3xl w-full mx-auto px-4 md:px-6 mb-8">
-              <Glass>
-                <h3 className="font-bold text-casino-gold text-base mb-1 text-center">
-                  {lang === "en" ? "How to Use AI Predictions" : lang === "tc" ? "如何使用 AI 預測" : "如何使用 AI 预测"}
-                </h3>
-                <p className="text-[10px] text-white/50 text-center mb-4">
-                  {lang === "en" ? "3 simple steps to get your AI-powered Mark 6 numbers" : lang === "tc" ? "3 個簡單步驟獲取 AI 六合彩預測號碼" : "3 个简单步骤获取 AI 六合彩预测号码"}
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {[
-                    {
-                      icon: <Gamepad2 size={20} className="text-amber-400" />,
-                      title: { en: "Choose AI Model", tc: "選擇 AI 模型", sc: "选择 AI 模型" },
-                      desc: { en: "Enter AI Games and pick your favourite AI prediction partner (e.g. Elon's Banker strategy).", tc: "進入 AI Games 選擇您喜歡的 AI 預測模型（如 Elon 的膽拖策略）。", sc: "进入 AI Games 选择您喜欢的 AI 预测模型（如 Elon 的胆拖策略）。" },
-                    },
-                    {
-                      icon: <BarChart3 size={20} className="text-emerald-400" />,
-                      title: { en: "Generate Numbers", tc: "生成號碼", sc: "生成号码" },
-                      desc: { en: "AI runs 500,000 simulations based on the last 100 draws and mathematical models.", tc: "AI 會根據近 100 期數據與數學模型進行 50萬次模擬。", sc: "AI 会根据近 100 期数据与数学模型进行 50万次模拟。" },
-                    },
-                    {
-                      icon: <Sparkles size={20} className="text-violet-400" />,
-                      title: { en: "Get Inspiration", tc: "獲取靈感", sc: "获取灵感" },
-                      desc: { en: "Download your personalised prediction report with 10 sets of recommended numbers.", tc: "下載您的專屬預測報告與 10 組推薦號碼。", sc: "下载您的专属预测报告与 10 组推荐号码。" },
-                    },
-                  ].map((s, i) => (
-                    <div key={i} className="rounded-lg felt-card p-4 space-y-2 text-center">
-                      <div className="mx-auto w-10 h-10 rounded-full bg-casino-gold/15 flex items-center justify-center">{s.icon}</div>
-                      <div className="text-xs font-bold text-casino-gold">Step {i + 1}</div>
-                      <h4 className="text-sm font-bold text-white">{s.title[lang]}</h4>
-                      <p className="text-[11px] text-white/50 leading-relaxed">{s.desc[lang]}</p>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </Glass>
             </section>
@@ -382,7 +348,7 @@ const AIGames = () => {
                 className="inline-flex items-center gap-3 rounded-xl border border-casino-gold/30 bg-casino-gold/10 px-6 py-3 text-casino-gold font-semibold hover:bg-casino-gold/20 transition-all group text-sm"
               >
                 <FileText size={18} className="group-hover:scale-110 transition-transform" />
-                {lang === "en" ? "Download: AI Mark 6 Analysis Guide (PDF)" : lang === "tc" ? "下載：AI 六合彩分析指南 (PDF)" : "下载：AI 六合彩分析指南 (PDF)"}
+                {lang === "en" ? "Download: AI Mark6 Analysis Guide (PDF)" : lang === "tc" ? "下載：AI 六合彩分析指南 (PDF)" : "下载：AI 六合彩分析指南 (PDF)"}
                 <Download size={16} />
               </a>
             </section>

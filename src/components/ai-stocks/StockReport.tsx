@@ -91,11 +91,13 @@ const t = {
     riskModelDesc: "Limitations of the mathematical model used in this analysis",
     riskSelfDecision: "Principle of Self-Decision",
     riskSelfDecisionBody: "AI probability scores are mathematical calculations based on historical data — they are NOT guarantees of profit or loss. Always make your own informed decision and consult a licensed financial advisor before investing.",
-     footnote1: "This document is produced by DragonGPAi.com for informational purposes only and does not constitute an offer, solicitation, or recommendation to buy or sell any security.",
-     footnote2: "The analysis herein is based on mathematical probability models and publicly available market data. DragonGPAi.com holds no professional financial advisory or gambling licenses.",
+    footnote1: "This document is produced by DragonGPAi.com for informational purposes only and does not constitute an offer, solicitation, or recommendation to buy or sell any security.",
+    footnote2: "The analysis herein is based on mathematical probability models and publicly available market data. DragonGPAi.com holds no professional financial advisory or gambling licenses.",
     footnote3: "Past performance is not indicative of future results. All investments carry risk, including the possible loss of principal.",
     priceVsIndex: "12-Month Price vs. Index Performance",
     reportFooter: "Report created by DragonGPAi.com, powered by Gemini",
+    noAdvice: "Maintain existing positions with tight risk management.",
+    noValueAdvice: "Wait for clearer value signals before making decisions.",
   },
   tc: {
     reportTitle: "AI 股票概率報告",
@@ -175,11 +177,13 @@ const t = {
     riskModelDesc: "本分析所用數學模型的局限性",
     riskSelfDecision: "自主決策原則",
     riskSelfDecisionBody: "AI 概率評分是基於歷史數據的數學推算——並非獲利或虧損的保證。請務必自行做出明智決定，並在投資前諮詢持牌財務顧問。",
-     footnote1: "本文件由 DragonGPAi.com 製作，僅供參考之用，不構成任何買賣證券的要約、招攬或建議。",
-     footnote2: "本分析基於數學概率模型及公開市場數據。DragonGPAi.com 不持有任何專業財務顧問或博弈牌照。",
+    footnote1: "本文件由 DragonGPAi.com 製作，僅供參考之用，不構成任何買賣證券的要約、招攬或建議。",
+    footnote2: "本分析基於數學概率模型及公開市場數據。DragonGPAi.com 不持有任何專業財務顧問或博弈牌照。",
     footnote3: "過往表現並非未來表現的指標。所有投資均存在風險，包括可能損失本金。",
     priceVsIndex: "12個月股價 vs 指數表現",
     reportFooter: "報告由 DragonGPAi.com 製作，由 Gemini 提供支持",
+    noAdvice: "維持現有倉位，嚴格風險管理。",
+    noValueAdvice: "等待更清晰的價值信號再做決策。",
   },
   sc: {
     reportTitle: "AI 股票概率报告",
@@ -259,11 +263,13 @@ const t = {
     riskModelDesc: "本分析所用数学模型的局限性",
     riskSelfDecision: "自主决策原则",
     riskSelfDecisionBody: "AI 概率评分是基于历史数据的数学推算——并非获利或亏损的保证。请务必自行做出明智决定，并在投资前咨询持牌财务顾问。",
-     footnote1: "本文件由 DragonGPAi.com 制作，仅供参考之用，不构成任何买卖证券的要约、招揽或建议。",
-     footnote2: "本分析基于数学概率模型及公开市场数据。DragonGPAi.com 不持有任何专业财务顾问或博弈牌照。",
+    footnote1: "本文件由 DragonGPAi.com 制作，仅供参考之用，不构成任何买卖证券的要约、招揽或建议。",
+    footnote2: "本分析基于数学概率模型及公开市场数据。DragonGPAi.com 不持有任何专业财务顾问或博弈牌照。",
     footnote3: "过往表现并非未来表现的指标。所有投资均存在风险，包括可能损失本金。",
     priceVsIndex: "12个月股价 vs 指数表现",
     reportFooter: "报告由 DragonGPAi.com 制作，由 Gemini 提供支持",
+    noAdvice: "维持现有仓位，严格风险管理。",
+    noValueAdvice: "等待更清晰的价值信号再做决策。",
   },
 };
 
@@ -298,7 +304,6 @@ export interface ReportData {
   valueAdvice: string;
   sentimentScore: number;
   trendStrength: number;
-  /* Institutional fields */
   executiveThesis: string;
   sector: string;
   industry: string;
@@ -313,7 +318,6 @@ export interface ReportData {
   financialHealthScore: number;
   debtToEquity: number;
   cashFlowTrend: "up" | "stable" | "down";
-  /* New fields */
   bid: number;
   ask: number;
   bidSize: number;
@@ -325,6 +329,8 @@ export interface ReportData {
   companyDescription: string;
   news: StockNewsItem[];
   upcomingDividend?: { amount: string; exDate: string } | null;
+  confidenceScore?: number;
+  trend?: string;
 }
 
 /* ── Section helpers ──────────────────────────── */
@@ -358,6 +364,15 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
   const l = t[lang];
   const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
+  // Use default advice if not provided
+  const conservativeAdvice = report.conservativeAdvice && report.conservativeAdvice !== 'N/A' 
+    ? report.conservativeAdvice 
+    : l.noAdvice;
+  
+  const valueAdvice = report.valueAdvice && report.valueAdvice !== 'N/A' 
+    ? report.valueAdvice 
+    : l.noValueAdvice;
+
   return (
     <div
       id="stock-report"
@@ -379,16 +394,8 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
         @media print {
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           body { background: #fff !important; color: #000 !important; margin: 0 !important; padding: 0 !important; zoom: 0.9; }
-
-          /* Hide all UI chrome */
-          header, footer, nav,
-          .no-print, button,
-          [data-no-print],
-          [class*="lang-toggle"],
-          [class*="top-up"],
-          [class*="credits-badge"] { display: none !important; }
-
-          /* Report fills full page width */
+          header, footer, nav, .no-print, button, [data-no-print],
+          [class*="lang-toggle"], [class*="top-up"], [class*="credits-badge"] { display: none !important; }
           #stock-report {
             max-width: 100% !important;
             width: 100% !important;
@@ -407,28 +414,18 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
             border: none !important;
             border-radius: 0 !important;
           }
-
-          /* Compact all sections */
           .report-section { padding-top: 2px !important; padding-bottom: 2px !important; }
           .report-section h3 { font-size: 9px !important; margin-bottom: 2px !important; padding-bottom: 1px !important; }
-
-          /* Compact padding */
           .report-px { padding-left: 8px !important; padding-right: 8px !important; }
           .report-py { padding-top: 2px !important; padding-bottom: 2px !important; }
-
-          /* Force compact grid gaps */
           .report-section .grid { gap: 3px !important; }
           .report-section .space-y-4 > * + * { margin-top: 3px !important; }
           .report-section .space-y-3 > * + * { margin-top: 2px !important; }
           .report-section .space-y-2 > * + * { margin-top: 1px !important; }
-
-          /* Compact cards */
           .report-section .p-4 { padding: 3px 5px !important; }
           .report-section .p-3 { padding: 2px 4px !important; }
           .report-section .p-5 { padding: 3px 6px !important; }
           .report-section .p-2 { padding: 2px 4px !important; }
-
-          /* Smaller text in print */
           .report-section .text-\\[12px\\] { font-size: 8px !important; }
           .report-section .text-\\[11px\\] { font-size: 7.5px !important; }
           .report-section .text-\\[10px\\] { font-size: 7px !important; }
@@ -438,28 +435,16 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
           .report-section .text-\\[17px\\] { font-size: 10px !important; }
           .report-section .text-\\[13px\\] { font-size: 8px !important; }
           .report-section .text-\\[14px\\] { font-size: 9px !important; }
-
           .stock-chart-container { max-height: 140px !important; overflow: hidden !important; }
           .stock-chart-container .recharts-responsive-container { max-height: 130px !important; }
-
-          /* 2/3-column grids for print */
           .print-2col { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 3px !important; }
           .print-3col { display: grid !important; grid-template-columns: 1fr 1fr 1fr !important; gap: 3px !important; }
-
-          /* Prevent splitting sections */
-          .report-section,
-          .report-section table,
-          .grid { page-break-inside: avoid; break-inside: avoid; }
-
+          .report-section, .report-section table, .grid { page-break-inside: avoid; break-inside: avoid; }
           .report-page-break { page-break-before: always; break-before: page; }
           .print-only { display: flex !important; }
-
-          /* Print header compact */
           .print-header-compact { padding: 4px 8px !important; }
           .print-header-compact h2 { font-size: 11px !important; }
           .print-header-compact img { height: 16px !important; width: 16px !important; }
-
-          /* Page footer on every page */
           .report-page-footer {
             position: fixed;
             bottom: 0;
@@ -474,10 +459,7 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
             justify-content: space-between;
             align-items: center;
           }
-
-          /* Eliminate divide-y borders extra spacing */
           .divide-y > * + * { border-top-width: 1px !important; }
-
           @page {
             size: A4 portrait;
             margin: 8mm 10mm 14mm 10mm;
@@ -491,13 +473,13 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
         }
       `}</style>
 
-      {/* ══ Print-only page footer (every page) ═══ */}
+      {/* ══ Print-only page footer ═══ */}
       <div className="report-page-footer">
         <span>{l.reportFooter} — {today}</span>
         <span>{l.confidential}</span>
       </div>
 
-      {/* ══ Running document header (always visible) ═══ */}
+      {/* ══ Running document header ═══ */}
       <div
         className="flex items-center justify-between mx-auto mb-2 px-1"
         style={{ maxWidth: "210mm" }}
@@ -516,7 +498,7 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
         </div>
       </div>
 
-      {/* ══ Report container (A4 width) ═════════ */}
+      {/* ══ Report container ═════════ */}
       <div
         className="report-container mx-auto bg-white overflow-hidden relative"
         style={{
@@ -539,9 +521,8 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
           />
         </div>
 
-        {/* ── Cover header — "L" layout: Logo left, info right ── */}
+        {/* ── Cover header ── */}
         <div style={{ background: "#1e293b" }} className="px-3 py-1.5 print-header-compact">
-          {/* Row 1: Logo + Ticker/Price/Industry */}
           <div className="flex items-center gap-2">
             <img src={dragonLogo} alt="DragonGPAi.com" className="h-6 w-6 rounded shrink-0" />
             <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
@@ -578,7 +559,7 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
           </div>
         </div>
 
-        {/* ── Action bar (watchlist + recommendation — screen only most compact) ── */}
+        {/* ── Action bar ── */}
         <div className="px-4 py-2 flex items-center justify-between flex-wrap gap-2 report-section" style={{ background: "#f8fafc", borderBottom: "1px solid #e5e7eb" }}>
           <button
             onClick={onAddWatchlist}
@@ -606,14 +587,12 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
           </div>
         </div>
 
-        {/* ── 2-Column Executive Summary Grid (Desktop/Print) ── */}
+        {/* ── 2-Column Executive Summary ── */}
         <div className="px-5 py-3 grid grid-cols-1 lg:grid-cols-2 gap-4 print-2col" style={{ borderBottom: "1px solid #e5e7eb" }}>
-          {/* Left Column: Investment Thesis + Confidence */}
+          {/* Left Column: Investment Thesis */}
           <div className="report-section">
             <SectionTitle>{l.executiveThesisTitle}</SectionTitle>
-            {/* Bulletized thesis: split by sentence or use AI-generated text */}
             {(() => {
-              // Split thesis into sentences and create bullet points
               const sentences = report.executiveThesis
                 .split(/(?<=[.!?])\s+/)
                 .filter((s) => s.trim().length > 10);
@@ -642,15 +621,15 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
             </div>
           </div>
 
-          {/* Right Column: Key Multiples + Market Data */}
+          {/* Right Column: Key Multiples */}
           <div className="report-section">
             <SectionTitle>{l.keyMultiples}</SectionTitle>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { label: l.marketCap, value: report.marketCap },
-                { label: l.peRatio, value: report.peRatio },
-                { label: l.dividendYield, value: report.dividendYield + (report.upcomingDividend ? ` ⬆` : "") },
-                { label: l.roeLabel, value: report.roe },
+                { label: l.marketCap, value: report.marketCap || 'N/A' },
+                { label: l.peRatio, value: report.peRatio || 'N/A' },
+                { label: l.dividendYield, value: report.dividendYield || 'N/A' + (report.upcomingDividend ? ` ⬆` : "") },
+                { label: l.roeLabel, value: report.roe || 'N/A' },
               ].map((item) => (
                 <div
                   key={item.label}
@@ -662,7 +641,6 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
                 </div>
               ))}
             </div>
-            {/* Upcoming Dividend Banner */}
             {report.upcomingDividend && (
               <div className="mt-2 p-2 rounded" style={{ background: "#ecfdf5", border: "1px solid #86efac" }}>
                 <p className="text-[10px] font-semibold" style={{ color: "#166534" }}>
@@ -674,13 +652,12 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
                 </p>
               </div>
             )}
-            {/* Market Data inline */}
             <div className="grid grid-cols-2 gap-2 mt-2">
               {[
-                { label: l.weekHigh, value: report.weekHigh, color: "#15803d" },
-                { label: l.weekLow, value: report.weekLow, color: "#dc2626" },
-                { label: l.volume, value: report.volume, color: "#b45309" },
-                { label: l.livePrice, value: report.price, color: "#1e293b" },
+                { label: l.weekHigh, value: report.weekHigh || 'N/A', color: "#15803d" },
+                { label: l.weekLow, value: report.weekLow || 'N/A', color: "#dc2626" },
+                { label: l.volume, value: report.volume || 'N/A', color: "#b45309" },
+                { label: l.livePrice, value: report.price || 'N/A', color: "#1e293b" },
               ].map((item) => (
                 <div
                   key={item.label}
@@ -695,16 +672,18 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
           </div>
         </div>
 
-        {/* ── Bull vs. Bear Summary ──────────────── */}
+        {/* ── Bull vs. Bear Summary ── */}
         <div className="px-5 py-2 report-section" style={{ borderBottom: "1px solid #e5e7eb", pageBreakInside: "avoid", breakInside: "avoid" }}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 print-2col">
-            {/* Bull Case */}
             <div className="rounded p-2.5" style={{ background: "#f0fdf4", border: "1px solid #86efac" }}>
               <h4 className="text-[11px] font-bold mb-1.5" style={{ color: "#15803d" }}>
                 🐂 {l.bullCase}
               </h4>
               <ul className="space-y-1">
-                {report.bullPoints.slice(0, 3).map((pt, i) => (
+                {(report.bullPoints && report.bullPoints.length > 0 ? report.bullPoints : [
+                  lang === 'en' ? 'Current valuation presents entry opportunity.' : 
+                  lang === 'tc' ? '當前估值呈現入場機會。' : '当前估值呈现入场机会。'
+                ]).slice(0, 3).map((pt, i) => (
                   <li key={i} className="flex items-start gap-1.5 text-[9px] leading-snug" style={{ color: "#334155" }}>
                     <span className="mt-[4px] shrink-0 w-1 h-1 rounded-full" style={{ background: "#15803d" }} />
                     <span>{pt}</span>
@@ -712,13 +691,15 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
                 ))}
               </ul>
             </div>
-            {/* Bear Case */}
             <div className="rounded p-2.5" style={{ background: "#fef2f2", border: "1px solid #fca5a5" }}>
               <h4 className="text-[11px] font-bold mb-1.5" style={{ color: "#dc2626" }}>
                 🐻 {l.bearCase}
               </h4>
               <ul className="space-y-1">
-                {report.bearPoints.slice(0, 3).map((pt, i) => (
+                {(report.bearPoints && report.bearPoints.length > 0 ? report.bearPoints : [
+                  lang === 'en' ? 'Mixed technical signals warrant caution.' : 
+                  lang === 'tc' ? '技術信號混雜，建議謹慎。' : '技术信号混杂，建议谨慎。'
+                ]).slice(0, 3).map((pt, i) => (
                   <li key={i} className="flex items-start gap-1.5 text-[9px] leading-snug" style={{ color: "#334155" }}>
                     <span className="mt-[4px] shrink-0 w-1 h-1 rounded-full" style={{ background: "#dc2626" }} />
                     <span>{pt}</span>
@@ -729,7 +710,7 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
           </div>
         </div>
 
-        {/* ── Content sections ───────────────────── */}
+        {/* ── Content sections ── */}
         <div className="px-5 divide-y" style={{ borderColor: "#e5e7eb" }}>
 
           {/* Market Depth */}
@@ -755,23 +736,23 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
             industry={report.industry}
           />
 
-          {/* Technical Indicators — compact 2-col */}
+          {/* Technical Indicators */}
           <Section className="report-section">
             <SectionTitle>{l.techIndicators}</SectionTitle>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="text-center space-y-1">
                 <p className="text-[9px] uppercase tracking-[0.1em]" style={{ color: "#94a3b8" }}>{l.rsiIndicator}</p>
                 <div className="relative flex justify-center">
-                  <ProbabilityGauge value={report.rsi} size={100} label={report.rsiStatus} />
+                  <ProbabilityGauge value={report.rsi || 50} size={100} label={report.rsiStatus || 'Neutral'} />
                 </div>
               </div>
               <div className="space-y-2">
                 <p className="text-[9px] uppercase tracking-[0.1em]" style={{ color: "#94a3b8" }}>{l.macdIndicator}</p>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   {[
-                    { label: l.macdLine, value: report.macdLine },
-                    { label: l.signalLine, value: report.signalLine },
-                    { label: l.histogram, value: report.histogram },
+                    { label: l.macdLine, value: report.macdLine || 'N/A' },
+                    { label: l.signalLine, value: report.signalLine || 'N/A' },
+                    { label: l.histogram, value: report.histogram || 'N/A' },
                   ].map((m) => (
                     <div key={m.label} className="p-1.5 rounded" style={{ border: "1px solid #e5e7eb", background: "#f8fafc" }}>
                       <p className="text-[8px]" style={{ color: "#94a3b8" }}>{m.label}</p>
@@ -784,51 +765,49 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
                     className="text-[10px] font-semibold px-2 py-0.5 rounded"
                     style={{ border: "1px solid rgba(21,128,61,0.25)", color: "#15803d", background: "#dcfce7" }}
                   >
-                    {report.macdStatus}
+                    {report.macdStatus || 'Neutral'}
                   </span>
                 </div>
               </div>
             </div>
           </Section>
 
-          {/* AI Probability + Decision Matrix side-by-side */}
+          {/* AI Probability + Decision Matrix */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 py-3 print-2col report-section" style={{ pageBreakInside: "avoid" }}>
-            {/* AI Probability */}
             <div>
               <SectionTitle>{l.aiProbPricing}</SectionTitle>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px]" style={{ color: "#64748b" }}>{l.aiProbability}</span>
-                <span className="text-[15px] font-bold" style={{ color: "#1e293b" }}>{report.probability}%</span>
+                <span className="text-[15px] font-bold" style={{ color: "#1e293b" }}>{report.probability || 50}%</span>
               </div>
               <div className="w-full h-[8px] rounded-full overflow-hidden mb-3" style={{ background: "#e2e8f0" }}>
                 <div
                   className="h-full rounded-full transition-all duration-700"
-                  style={{ width: `${report.probability}%`, background: "linear-gradient(90deg, #b45309, #15803d)" }}
+                  style={{ width: `${report.probability || 50}%`, background: "linear-gradient(90deg, #b45309, #15803d)" }}
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="p-2 text-center rounded" style={{ border: "1px solid rgba(21,128,61,0.2)", background: "#f0fdf4" }}>
                   <p className="text-[9px] uppercase tracking-[0.1em]" style={{ color: "#64748b" }}>{l.buyTarget}</p>
-                  <p className="text-[15px] font-bold mt-0.5" style={{ color: "#15803d" }}>{report.buyTarget}</p>
+                  <p className="text-[15px] font-bold mt-0.5" style={{ color: "#15803d" }}>{report.buyTarget || 'N/A'}</p>
                 </div>
                 <div className="p-2 text-center rounded" style={{ border: "1px solid rgba(220,38,38,0.2)", background: "#fef2f2" }}>
                   <p className="text-[9px] uppercase tracking-[0.1em]" style={{ color: "#64748b" }}>{l.sellTarget}</p>
-                  <p className="text-[15px] font-bold mt-0.5" style={{ color: "#dc2626" }}>{report.sellTarget}</p>
+                  <p className="text-[15px] font-bold mt-0.5" style={{ color: "#dc2626" }}>{report.sellTarget || 'N/A'}</p>
                 </div>
               </div>
             </div>
-            {/* Decision Matrix + Sentiment */}
             <div>
               <SectionTitle>{l.decisionMatrix}</SectionTitle>
               <div className="w-full h-[24px] rounded overflow-hidden flex text-[10px] font-bold text-white">
-                <div className="flex items-center justify-center" style={{ width: `${report.buyPct}%`, background: "#15803d" }}>
-                  {report.buyPct}%
+                <div className="flex items-center justify-center" style={{ width: `${report.buyPct || 33}%`, background: "#15803d" }}>
+                  {report.buyPct || 33}%
                 </div>
-                <div className="flex items-center justify-center" style={{ width: `${report.holdPct}%`, background: "#b45309" }}>
-                  {report.holdPct}%
+                <div className="flex items-center justify-center" style={{ width: `${report.holdPct || 34}%`, background: "#b45309" }}>
+                  {report.holdPct || 34}%
                 </div>
-                <div className="flex items-center justify-center" style={{ width: `${report.sellPct}%`, background: "#dc2626" }}>
-                  {report.sellPct}%
+                <div className="flex items-center justify-center" style={{ width: `${report.sellPct || 33}%`, background: "#dc2626" }}>
+                  {report.sellPct || 33}%
                 </div>
               </div>
               <div className="flex justify-between mt-1 text-[9px]" style={{ color: "#64748b" }}>
@@ -836,30 +815,29 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "#b45309" }} />{l.hold}</span>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "#dc2626" }} />{l.sell}</span>
               </div>
-              {/* Sentiment + Trend inline */}
               <div className="grid grid-cols-2 gap-2 mt-3">
                 <div className="p-2 text-center rounded" style={{ border: "1px solid #e5e7eb", background: "#f8fafc" }}>
                   <Activity className="mx-auto mb-0.5" size={14} style={{ color: "#b45309" }} />
                   <p className="text-[8px] uppercase tracking-[0.12em]" style={{ color: "#94a3b8" }}>{l.sentiment}</p>
-                  <p className="text-[15px] font-bold" style={{ color: "#1e293b" }}>{report.sentimentScore}/100</p>
+                  <p className="text-[15px] font-bold" style={{ color: "#1e293b" }}>{report.sentimentScore || 50}/100</p>
                 </div>
                 <div className="p-2 text-center rounded" style={{ border: "1px solid #e5e7eb", background: "#f8fafc" }}>
                   <BarChart3 className="mx-auto mb-0.5" size={14} style={{ color: "#15803d" }} />
                   <p className="text-[8px] uppercase tracking-[0.12em]" style={{ color: "#94a3b8" }}>{l.trendStrength}</p>
-                  <p className="text-[15px] font-bold" style={{ color: "#1e293b" }}>{report.trendStrength}/100</p>
+                  <p className="text-[15px] font-bold" style={{ color: "#1e293b" }}>{report.trendStrength || 50}/100</p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Price vs Index Chart — height capped at 220px */}
+          {/* Price vs Index Chart */}
           <Section className="report-section">
             <div className="stock-chart-container" style={{ maxHeight: "220px" }}>
               <PriceVsIndexChart lang={lang} ticker={report.ticker} />
             </div>
           </Section>
 
-          {/* Bull/Bear Analysis side-by-side */}
+          {/* Bull/Bear Analysis */}
           <Section className="report-section">
             <SectionTitle>{l.deepDive}</SectionTitle>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 print-2col">
@@ -868,7 +846,10 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
                   <TrendingUp size={12} className="inline mr-1" />{l.bullCase}
                 </p>
                 <ul className="space-y-1">
-                  {report.bullPoints.map((p, i) => (
+                  {(report.bullPoints && report.bullPoints.length > 0 ? report.bullPoints : [
+                    lang === 'en' ? 'Current valuation presents entry opportunity.' : 
+                    lang === 'tc' ? '當前估值呈現入場機會。' : '当前估值呈现入场机会。'
+                  ]).map((p, i) => (
                     <li key={i} className="flex items-start gap-1.5 text-[10px]" style={{ color: "#166534" }}>
                       <span className="w-1.5 h-1.5 rounded-full mt-[5px] shrink-0" style={{ background: "#15803d" }} />
                       {p}
@@ -881,7 +862,10 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
                   <TrendingDown size={12} className="inline mr-1" />{l.bearCase}
                 </p>
                 <ul className="space-y-1">
-                  {report.bearPoints.map((p, i) => (
+                  {(report.bearPoints && report.bearPoints.length > 0 ? report.bearPoints : [
+                    lang === 'en' ? 'Mixed technical signals warrant caution.' : 
+                    lang === 'tc' ? '技術信號混雜，建議謹慎。' : '技术信号混杂，建议谨慎。'
+                  ]).map((p, i) => (
                     <li key={i} className="flex items-start gap-1.5 text-[10px]" style={{ color: "#991b1b" }}>
                       <span className="w-1.5 h-1.5 rounded-full mt-[5px] shrink-0" style={{ background: "#dc2626" }} />
                       {p}
@@ -898,16 +882,16 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
             <div className="space-y-3">
               {/* Health Score */}
               {(() => {
-                const score = report.financialHealthScore;
+                const score = report.financialHealthScore || 50;
                 const tier = score >= 80 ? "excellent" : score >= 60 ? "good" : score >= 40 ? "fair" : "weak";
                 const tierLabel = tier === "excellent" ? l.healthExcellent : tier === "good" ? l.healthGood : tier === "fair" ? l.healthFair : l.healthWeak;
                 const tierColor = tier === "excellent" ? "#15803d" : tier === "good" ? "#2563eb" : tier === "fair" ? "#f59e0b" : "#dc2626";
                 const tierAdvice = tier === "excellent" ? l.healthAdviceExcellent : tier === "good" ? l.healthAdviceGood : tier === "fair" ? l.healthAdviceFair : l.healthAdviceWeak;
 
-                const peNum = parseFloat(report.peRatio.replace("x", ""));
-                const roeNum = parseFloat(report.roe.replace("%", ""));
-                const de = report.debtToEquity;
-                const cf = report.cashFlowTrend;
+                const peNum = parseFloat((report.peRatio || '20x').replace("x", ""));
+                const roeNum = parseFloat((report.roe || '10%').replace("%", ""));
+                const de = report.debtToEquity || 0.5;
+                const cf = report.cashFlowTrend || 'stable';
                 const peS = isNaN(peNum) ? 12 : peNum < 15 ? 22 : peNum < 25 ? 18 : peNum < 40 ? 12 : 6;
                 const roeS = isNaN(roeNum) ? 12 : roeNum > 20 ? 23 : roeNum > 12 ? 18 : roeNum > 5 ? 12 : 5;
                 const debtS = de < 0.3 ? 24 : de < 0.8 ? 20 : de < 1.5 ? 12 : 4;
@@ -922,7 +906,6 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
                 return (
                   <div className="p-3 rounded" style={{ border: `1px solid ${tierColor}22`, background: `${tierColor}08` }}>
                     <div className="flex items-start gap-3">
-                      {/* Score donut — compact */}
                       <div className="flex flex-col items-center shrink-0">
                         <svg width={90} height={90} viewBox="0 0 110 110">
                           <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e2e8f0" strokeWidth={8} />
@@ -949,14 +932,13 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
                           {tierLabel}
                         </span>
                       </div>
-                      {/* Breakdown */}
                       <div className="flex-1 min-w-0">
                         <p className="text-[10px] leading-relaxed mb-2" style={{ color: "#334155" }}>{tierAdvice}</p>
                         <div className="grid grid-cols-2 gap-1.5">
                           {[
-                            { label: l.peRatio, score: peS, max: 25, value: report.peRatio },
-                            { label: l.roeLabel, score: roeS, max: 25, value: report.roe },
-                            { label: l.debtLabel, score: debtS, max: 25, value: `${report.debtToEquity.toFixed(2)}x` },
+                            { label: l.peRatio, score: peS, max: 25, value: report.peRatio || 'N/A' },
+                            { label: l.roeLabel, score: roeS, max: 25, value: report.roe || 'N/A' },
+                            { label: l.debtLabel, score: debtS, max: 25, value: `${de.toFixed(2)}x` },
                             { label: l.cashFlowLabel, score: cfS, max: 25, value: cfLabel },
                           ].map((sub) => (
                             <div key={sub.label} className="p-1.5 rounded" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.06)" }}>
@@ -982,59 +964,62 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
                 );
               })()}
 
-              {/* Financial metric details — compact */}
+              {/* Financial metric details */}
               {(() => {
-                const peNum = parseFloat(report.peRatio.replace("x", ""));
-                const roeNum = parseFloat(report.roe.replace("%", ""));
-                const divNum = parseFloat(report.dividendYield.replace("%", ""));
-                const sector = report.sector;
+                const peNum = parseFloat((report.peRatio || '20x').replace("x", ""));
+                const roeNum = parseFloat((report.roe || '10%').replace("%", ""));
+                const divNum = parseFloat((report.dividendYield || '0%').replace("%", ""));
+                const sector = report.sector || 'N/A';
                 const isTech = sector === "Technology" || sector === "Communication Services";
                 const isFinancial = sector === "Financials";
-                const price = parseFloat(report.price.replace(/[^0-9.]/g, ""));
-                const currency = report.price.replace(/[0-9.,]/g, "").trim();
+                const price = parseFloat((report.price || '0').replace(/[^0-9.]/g, ""));
+                const currency = (report.price || '').replace(/[0-9.,]/g, "").trim() || '$';
                 const isHK = currency.includes("HK");
                 const investAmount = isHK ? 100000 : 10000;
                 const investLabel = isHK ? (lang === "en" ? "HK$100,000" : "10萬港幣") : (lang === "en" ? "$10,000" : "$10,000");
-                const annualDiv = Math.round(investAmount * divNum / 100);
+                const annualDiv = !isNaN(divNum) && divNum > 0 ? Math.round(investAmount * divNum / 100) : 0;
 
                 const metrics = [
                   (() => {
-                    const isExpensive = isTech ? peNum > 35 : isFinancial ? peNum > 15 : peNum > 25;
-                    const isCheap = isTech ? peNum < 20 : isFinancial ? peNum < 8 : peNum < 15;
+                    const isExpensive = !isNaN(peNum) && ((isTech ? peNum > 35 : isFinancial ? peNum > 15 : peNum > 25));
+                    const isCheap = !isNaN(peNum) && ((isTech ? peNum < 20 : isFinancial ? peNum < 8 : peNum < 15));
                     const signal: "green" | "amber" | "red" = isCheap ? "green" : isExpensive ? "red" : "amber";
                     const sectorBenchmark = isTech ? (lang === "en" ? "25-35x" : "25-35倍") : isFinancial ? (lang === "en" ? "8-15x" : "8-15倍") : (lang === "en" ? "15-25x" : "15-25倍");
                     const explanation = {
-                      en: isExpensive ? `P/E ${report.peRatio} — premium vs ${sector} avg ${sectorBenchmark}.` : isCheap ? `P/E ${report.peRatio} — below ${sector} avg ${sectorBenchmark}, potentially undervalued.` : `P/E ${report.peRatio} — normal for ${sector} (${sectorBenchmark}).`,
-                      tc: isExpensive ? `市盈率 ${report.peRatio}——高於 ${sector} 平均 ${sectorBenchmark}。` : isCheap ? `市盈率 ${report.peRatio}——低於 ${sector} 平均 ${sectorBenchmark}，可能被低估。` : `市盈率 ${report.peRatio}——處於 ${sector} 正常範圍（${sectorBenchmark}）。`,
-                      sc: isExpensive ? `市盈率 ${report.peRatio}——高于 ${sector} 平均 ${sectorBenchmark}。` : isCheap ? `市盈率 ${report.peRatio}——低于 ${sector} 平均 ${sectorBenchmark}，可能被低估。` : `市盈率 ${report.peRatio}——处于 ${sector} 正常范围（${sectorBenchmark}）。`,
+                      en: !isNaN(peNum) ? (isExpensive ? `P/E ${report.peRatio} — premium vs ${sector} avg ${sectorBenchmark}.` : isCheap ? `P/E ${report.peRatio} — below ${sector} avg ${sectorBenchmark}, potentially undervalued.` : `P/E ${report.peRatio} — normal for ${sector} (${sectorBenchmark}).`) : `P/E data not available.`,
+                      tc: !isNaN(peNum) ? (isExpensive ? `市盈率 ${report.peRatio}——高於 ${sector} 平均 ${sectorBenchmark}。` : isCheap ? `市盈率 ${report.peRatio}——低於 ${sector} 平均 ${sectorBenchmark}，可能被低估。` : `市盈率 ${report.peRatio}——處於 ${sector} 正常範圍（${sectorBenchmark}）。`) : `市盈率數據不可用。`,
+                      sc: !isNaN(peNum) ? (isExpensive ? `市盈率 ${report.peRatio}——高于 ${sector} 平均 ${sectorBenchmark}。` : isCheap ? `市盈率 ${report.peRatio}——低于 ${sector} 平均 ${sectorBenchmark}，可能被低估。` : `市盈率 ${report.peRatio}——处于 ${sector} 正常范围（${sectorBenchmark}）。`) : `市盈率数据不可用。`,
                     };
-                    return { label: l.peRatio, value: report.peRatio, signal, explanation: explanation[lang] };
+                    return { label: l.peRatio, value: report.peRatio || 'N/A', signal, explanation: explanation[lang] };
                   })(),
                   (() => {
-                    const isStrong = roeNum > 15;
-                    const isWeak = roeNum < 8;
+                    const isStrong = !isNaN(roeNum) && roeNum > 15;
+                    const isWeak = !isNaN(roeNum) && roeNum < 8;
                     const signal: "green" | "amber" | "red" = isStrong ? "green" : isWeak ? "red" : "amber";
                     const explanation = {
-                      en: isStrong ? `ROE ${report.roe} — high capital efficiency, strong earnings.` : isWeak ? `ROE ${report.roe} — weak capital efficiency.` : `ROE ${report.roe} — moderate efficiency.`,
-                      tc: isStrong ? `ROE ${report.roe}——資本效率高，盈利能力強。` : isWeak ? `ROE ${report.roe}——資本效率偏弱。` : `ROE ${report.roe}——資本效率中等。`,
-                      sc: isStrong ? `ROE ${report.roe}——资本效率高，盈利能力强。` : isWeak ? `ROE ${report.roe}——资本效率偏弱。` : `ROE ${report.roe}——资本效率中等。`,
+                      en: !isNaN(roeNum) ? (isStrong ? `ROE ${report.roe} — high capital efficiency, strong earnings.` : isWeak ? `ROE ${report.roe} — weak capital efficiency.` : `ROE ${report.roe} — moderate efficiency.`) : `ROE data not available.`,
+                      tc: !isNaN(roeNum) ? (isStrong ? `ROE ${report.roe}——資本效率高，盈利能力強。` : isWeak ? `ROE ${report.roe}——資本效率偏弱。` : `ROE ${report.roe}——資本效率中等。`) : `ROE 數據不可用。`,
+                      sc: !isNaN(roeNum) ? (isStrong ? `ROE ${report.roe}——资本效率高，盈利能力强。` : isWeak ? `ROE ${report.roe}——资本效率偏弱。` : `ROE ${report.roe}——资本效率中等。`) : `ROE 数据不可用。`,
                     };
-                    return { label: l.roeLabel, value: report.roe, signal, explanation: explanation[lang] };
+                    return { label: l.roeLabel, value: report.roe || 'N/A', signal, explanation: explanation[lang] };
                   })(),
                   (() => {
-                    const isHigh = divNum > 4;
-                    const isZero = divNum < 0.1;
+                    const isHigh = !isNaN(divNum) && divNum > 4;
+                    const isZero = !isNaN(divNum) && divNum < 0.1;
                     const signal: "green" | "amber" | "red" = isHigh ? "green" : isZero ? "red" : "amber";
-                    const divCalc = lang === "en" ? `Invest ${investLabel} → ~${currency}${annualDiv.toLocaleString()}/yr.` : lang === "tc" ? `投資 ${investLabel} → 年約 ${currency}${annualDiv.toLocaleString()}。` : `投资 ${investLabel} → 年约 ${currency}${annualDiv.toLocaleString()}。`;
+                    const divCalc = !isNaN(divNum) && divNum > 0 ? 
+                      (lang === "en" ? `Invest ${investLabel} → ~${currency}${annualDiv.toLocaleString()}/yr.` : 
+                       lang === "tc" ? `投資 ${investLabel} → 年約 ${currency}${annualDiv.toLocaleString()}。` : 
+                       `投资 ${investLabel} → 年约 ${currency}${annualDiv.toLocaleString()}。`) : '';
                     const explanation = {
-                      en: isHigh ? `Yield ${report.dividendYield} — strong income. ${divCalc}` : isZero ? `No dividend — growth reinvestment.` : `Yield ${report.dividendYield} — modest income. ${divCalc}`,
-                      tc: isHigh ? `收益率 ${report.dividendYield}——可觀收入。${divCalc}` : isZero ? `不派息——利潤再投資於增長。` : `收益率 ${report.dividendYield}——適度收入。${divCalc}`,
-                      sc: isHigh ? `收益率 ${report.dividendYield}——可观收入。${divCalc}` : isZero ? `不派息——利润再投资于增长。` : `收益率 ${report.dividendYield}——适度收入。${divCalc}`,
+                      en: !isNaN(divNum) ? (isHigh ? `Yield ${report.dividendYield} — strong income. ${divCalc}` : isZero ? `No dividend — growth reinvestment.` : `Yield ${report.dividendYield} — modest income. ${divCalc}`) : `Dividend data not available.`,
+                      tc: !isNaN(divNum) ? (isHigh ? `收益率 ${report.dividendYield}——可觀收入。${divCalc}` : isZero ? `不派息——利潤再投資於增長。` : `收益率 ${report.dividendYield}——適度收入。${divCalc}`) : `股息數據不可用。`,
+                      sc: !isNaN(divNum) ? (isHigh ? `收益率 ${report.dividendYield}——可观收入。${divCalc}` : isZero ? `不派息——利润再投资于增长。` : `收益率 ${report.dividendYield}——适度收入。${divCalc}`) : `股息数据不可用。`,
                     };
-                    return { label: l.dividendYield, value: report.dividendYield, signal, explanation: explanation[lang] };
+                    return { label: l.dividendYield, value: report.dividendYield || 'N/A', signal, explanation: explanation[lang] };
                   })(),
                   (() => {
-                    const vol = report.volatility.toLowerCase();
+                    const vol = (report.volatility || 'moderate').toLowerCase();
                     const isHigh = vol.includes("high") || vol.includes("高");
                     const isLow = vol.includes("low") || vol.includes("低");
                     const signal: "green" | "amber" | "red" = isLow ? "green" : isHigh ? "red" : "amber";
@@ -1043,7 +1028,7 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
                       tc: isHigh ? `高波動——預計價格劇烈波動。` : isLow ? `低波動——穩定可預測。` : `中等波動——活躍交易股票的典型特徵。`,
                       sc: isHigh ? `高波动——预计价格剧烈波动。` : isLow ? `低波动——稳定可预测。` : `中等波动——活跃交易股票的典型特征。`,
                     };
-                    return { label: l.volatilityIndex, value: report.volatility, signal, explanation: explanation[lang] };
+                    return { label: l.volatilityIndex, value: report.volatility || 'Moderate', signal, explanation: explanation[lang] };
                   })(),
                 ];
 
@@ -1072,17 +1057,17 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
             </div>
           </Section>
 
-          {/* Strategic Advice — compact */}
+          {/* Strategic Advice */}
           <Section className="report-section">
             <SectionTitle>{l.strategicAdvice}</SectionTitle>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 print-2col">
               <div className="p-2 rounded" style={{ border: "1px solid #e5e7eb", background: "#f8fafc" }}>
                 <p className="text-[9px] uppercase tracking-[0.1em] mb-0.5" style={{ color: "#94a3b8" }}>{l.conservative}</p>
-                <p className="text-[10px]" style={{ color: "#334155" }}>{report.conservativeAdvice}</p>
+                <p className="text-[10px]" style={{ color: "#334155" }}>{conservativeAdvice}</p>
               </div>
               <div className="p-2 rounded" style={{ border: "1px solid #e5e7eb", background: "#f8fafc" }}>
                 <p className="text-[9px] uppercase tracking-[0.1em] mb-0.5" style={{ color: "#94a3b8" }}>{l.value}</p>
-                <p className="text-[10px]" style={{ color: "#334155" }}>{report.valueAdvice}</p>
+                <p className="text-[10px]" style={{ color: "#334155" }}>{valueAdvice}</p>
               </div>
             </div>
           </Section>
@@ -1093,21 +1078,21 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
               lang={lang}
               targetTicker={report.ticker}
               targetCompany={report.companyName || report.ticker}
-              targetPrice={report.price}
-              targetMarketCap={report.marketCap}
-              targetPE={report.peRatio}
-              targetROE={report.roe}
-              targetDivYield={report.dividendYield}
+              targetPrice={report.price || 'N/A'}
+              targetMarketCap={report.marketCap || 'N/A'}
+              targetPE={report.peRatio || 'N/A'}
+              targetROE={report.roe || 'N/A'}
+              targetDivYield={report.dividendYield || 'N/A'}
             />
           </Section>
 
-          {/* Investment Risk Assessment — Market + Company side by side */}
+          {/* Investment Risk Assessment */}
           <Section className="report-section">
             <SectionTitle>⚠️ {l.riskTitle}</SectionTitle>
             <div className="space-y-3">
               {/* Risk Tier Gauge */}
               {(() => {
-                const vol = report.volatility.toLowerCase();
+                const vol = (report.volatility || 'moderate').toLowerCase();
                 const isHigh = vol.includes("high") || vol.includes("高");
                 const isLow = vol.includes("low") || vol.includes("低");
                 const tier = isHigh ? "high" : isLow ? "conservative" : "growth";
@@ -1141,12 +1126,15 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
                 );
               })()}
 
-              {/* All 3 risk categories — 3-column grid, no icons, 9pt font */}
+              {/* All 3 risk categories */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2 print-3col" style={{ pageBreakInside: "avoid", breakInside: "avoid" }}>
                 <div className="p-2 rounded" style={{ background: "#f1f5f9", border: "1px solid #cbd5e1" }}>
                   <span className="text-[9px] font-bold block mb-1" style={{ color: "#334155" }}>{l.riskMarket}</span>
                   <ul className="space-y-0.5">
-                    {report.riskAssessment.market.map((r, i) => (
+                    {(report.riskAssessment?.market?.length > 0 ? report.riskAssessment.market : [
+                      lang === 'en' ? 'Broad market volatility and geopolitical risks.' : 
+                      lang === 'tc' ? '大盤波動及地緣政治風險。' : '大盘波动及地缘政治风险。'
+                    ]).map((r, i) => (
                       <li key={i} className="text-[8px] leading-tight" style={{ color: "#475569" }}>• {r}</li>
                     ))}
                   </ul>
@@ -1154,7 +1142,10 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
                 <div className="p-2 rounded" style={{ background: "#fefce8", border: "1px solid #fbbf24" }}>
                   <span className="text-[9px] font-bold block mb-1" style={{ color: "#92400e" }}>{l.riskCompany}</span>
                   <ul className="space-y-0.5">
-                    {report.riskAssessment.company.map((r, i) => (
+                    {(report.riskAssessment?.company?.length > 0 ? report.riskAssessment.company : [
+                      lang === 'en' ? 'Company-specific risks including competition and regulatory changes.' : 
+                      lang === 'tc' ? '包括競爭和監管變化在內的個股風險。' : '包括竞争和监管变化在内的个股风险。'
+                    ]).map((r, i) => (
                       <li key={i} className="text-[8px] leading-tight" style={{ color: "#78350f" }}>• {r}</li>
                     ))}
                   </ul>
@@ -1162,14 +1153,17 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
                 <div className="p-2 rounded" style={{ background: "#eff6ff", border: "1px solid #93c5fd" }}>
                   <span className="text-[9px] font-bold block mb-1" style={{ color: "#1e40af" }}>{l.riskModel}</span>
                   <ul className="space-y-0.5">
-                    {report.riskAssessment.model.map((r, i) => (
+                    {(report.riskAssessment?.model?.length > 0 ? report.riskAssessment.model : [
+                      lang === 'en' ? 'AI models rely on historical data and mathematical projections.' : 
+                      lang === 'tc' ? 'AI模型依賴歷史數據和數學推算。' : 'AI模型依赖历史数据和数学推算。'
+                    ]).map((r, i) => (
                       <li key={i} className="text-[8px] leading-tight" style={{ color: "#1e3a5f" }}>• {r}</li>
                     ))}
                   </ul>
                 </div>
               </div>
 
-              {/* Self-Decision — compact */}
+              {/* Self-Decision */}
               <div className="p-2 rounded" style={{ background: "#fef2f2", border: "1px solid #fca5a5" }}>
                 <div className="flex items-start gap-1.5">
                   <Shield className="shrink-0 mt-0.5" size={12} style={{ color: "#dc2626" }} />
@@ -1190,7 +1184,7 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
           )}
         </div>
 
-        {/* ── Institutional Footnotes ─────────── */}
+        {/* ── Footnotes ── */}
         <div className="px-5 py-2" style={{ borderTop: "1px solid #e5e7eb", background: "#ffffff" }}>
           <div className="space-y-0.5">
             <p className="text-[7px] leading-relaxed" style={{ color: "#94a3b8" }}>
@@ -1205,7 +1199,7 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
           </div>
         </div>
 
-        {/* ── Branding footer ────────────────── */}
+        {/* ── Branding footer ── */}
         <div className="px-5 py-2 flex items-center justify-between" style={{ background: "#f8fafc", borderTop: "1px solid #e5e7eb" }}>
           <div className="flex items-center gap-2">
             <img src={dragonLogo} alt="" className="h-4 w-4" />
@@ -1219,7 +1213,7 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
           </div>
         </div>
 
-        {/* ── Confidential strip ───────────────── */}
+        {/* ── Confidential strip ── */}
         <div className="text-center py-1.5" style={{ background: "#1e293b" }}>
           <p className="text-[8px] uppercase tracking-[0.2em]" style={{ color: "rgba(255,255,255,0.5)" }}>
             {l.confidential}
@@ -1227,7 +1221,7 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
         </div>
       </div>
 
-      {/* ══ Print-only footer ═══════════════════ */}
+      {/* ══ Print-only footer ═══ */}
       <div className="print-only items-center justify-between pt-2 mt-3" style={{ borderTop: "1px solid #e5e7eb" }}>
         <p className="text-[7px] uppercase tracking-[0.15em]" style={{ color: "#94a3b8" }}>{l.confidential}</p>
         <p className="text-[7px]" style={{ color: "#94a3b8" }}>DragonGPAi.com — {report.date}</p>
