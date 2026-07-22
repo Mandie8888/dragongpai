@@ -58,6 +58,8 @@ const labels = {
     cold: "Cold Number Breakout",
     bankerLabel: "Banker & Leg Strategy",
     constrainedLabel: "★ Banker",
+    noCharacter: "No character selected",
+    goBack: "Go Back",
   },
   tc: {
     prediction: " 的戰略預測",
@@ -89,6 +91,8 @@ const labels = {
     cold: "冷門號碼突破",
     bankerLabel: "膽拖策略",
     constrainedLabel: "★ 膽",
+    noCharacter: "未選擇角色",
+    goBack: "返回",
   },
   sc: {
     prediction: " 的战略预测",
@@ -120,6 +124,8 @@ const labels = {
     cold: "冷门号码突破",
     bankerLabel: "胆拖策略",
     constrainedLabel: "★ 胆",
+    noCharacter: "未选择角色",
+    goBack: "返回",
   },
 };
 
@@ -284,6 +290,32 @@ const langKeys: LangKey[] = ["en", "tc", "sc"];
 const Mark6FullReport = ({ character, config, onReset }: Props) => {
   const { lang, setLang } = useLanguage();
   const t = labels[lang];
+  
+  // SAFETY CHECK: If character or config is undefined, show error state
+  if (!character || !config) {
+    return (
+      <div className="max-w-3xl w-full mx-auto px-4 py-20 text-center">
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-8">
+          <AlertTriangle className="text-red-400 w-16 h-16 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-white">{t.noCharacter}</h2>
+          <p className="text-[#f5e6c8]/60 mt-2 max-w-md mx-auto">
+            {lang === "en" 
+              ? "Please go back and select an AI partner to generate your prediction report." 
+              : lang === "tc" 
+                ? "請返回並選擇一個 AI 夥伴來生成您的預測報告。" 
+                : "请返回并选择一个 AI 伙伴来生成您的预测报告。"}
+          </p>
+          <button 
+            onClick={onReset}
+            className="mt-6 px-6 py-2.5 rounded-full bg-[#d4af37] text-[#1a3a2a] font-bold hover:bg-[#f5e6a0] transition-colors"
+          >
+            {t.goBack}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const predictions = useState(() => generatePredictions(config))[0];
   const freqData = computeFreqFromSets(predictions);
   const constrainedNums = getConstrainedNumbers(config);
@@ -296,7 +328,7 @@ const Mark6FullReport = ({ character, config, onReset }: Props) => {
 
   const handlePrint = () => window.print();
   const handleShare = () => {
-    const partnerLabel = character.name[lang];
+    const partnerLabel = character.name?.[lang] || character.name?.en || character.id;
     const text = lang === "en"
       ? `I just ran an AI Probability Analysis with ${partnerLabel} on DragonGPAi.com! 🐲🎯 Check it out: ${window.location.origin}/ai-games`
       : lang === "tc"
@@ -307,6 +339,13 @@ const Mark6FullReport = ({ character, config, onReset }: Props) => {
   };
 
   const stars = 3;
+  
+  // Safe access for character properties with fallbacks
+  const charName = character.name?.[lang] || character.name?.en || character.id;
+  const charSubtitle = character.subtitle?.[lang] || character.subtitle?.en || '';
+  const charMethod = character.method?.[lang] || character.method?.en || '';
+  const charBio = character.bio?.[lang] || character.bio?.en || '';
+  const charAvatar = character.avatar || '';
 
   return (
     <div className="max-w-3xl w-full mx-auto px-4 py-6 space-y-5 animate-fade-in print-report" id="mark6-full-report">
@@ -344,27 +383,33 @@ const Mark6FullReport = ({ character, config, onReset }: Props) => {
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-md p-6 print-header-card">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary/40 shadow-lg shrink-0">
-            <img src={avatarMap[character.avatar]} alt={character.name.en} className="w-full h-full object-cover" />
+            <img 
+              src={avatarMap[charAvatar] || avatarMap["dragon-master"]} 
+              alt={charName} 
+              className="w-full h-full object-cover" 
+            />
           </div>
           <div>
             <h2 className="text-xl md:text-2xl font-extrabold text-white [text-shadow:0_0_10px_rgba(255,255,255,0.3)]">
-              {character.name[lang]}{t.prediction}
+              {charName}{t.prediction}
             </h2>
             <div className="inline-flex items-center gap-2 mt-1 rounded-full border border-amber-400/40 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-300 print-hide">
-              📐 {t.methodology}: {character.method[lang]}
+              📐 {t.methodology}: {charMethod}
             </div>
             <div className="hidden print-method-badge">
-              {t.methodology}: {character.method[lang]}
+              {t.methodology}: {charMethod}
             </div>
           </div>
         </div>
 
         {/* Description — visible in print (compact) */}
-        <div className="mt-4 rounded-xl border border-white/5 bg-white/[0.02] p-4 print-hide-detail">
-          <p className="text-sm text-white/80 leading-relaxed">
-            ✨ {character.bio[lang]}
-          </p>
-        </div>
+        {charBio && (
+          <div className="mt-4 rounded-xl border border-white/5 bg-white/[0.02] p-4 print-hide-detail">
+            <p className="text-sm text-white/80 leading-relaxed">
+              ✨ {charBio}
+            </p>
+          </div>
+        )}
 
         {/* Simulation Power — hidden in print */}
         <div className="mt-4 rounded-xl border border-white/5 bg-white/[0.02] p-4 print-hide-simpower">
@@ -394,11 +439,11 @@ const Mark6FullReport = ({ character, config, onReset }: Props) => {
         <div className="grid grid-cols-1 gap-2 text-sm">
           <div className="flex items-start gap-2">
             <span className="text-amber-300 font-bold min-w-[130px]">{t.activeChar}:</span>
-            <span className="font-bold text-white">{character.name[lang]} — {character.subtitle[lang]}</span>
+            <span className="font-bold text-white">{charName} — {charSubtitle}</span>
           </div>
           <div className="flex items-start gap-2">
             <span className="text-amber-300 font-bold min-w-[130px]">{t.mathModule}:</span>
-            <span className="font-semibold text-white">{character.method[lang]}</span>
+            <span className="font-semibold text-white">{charMethod}</span>
           </div>
           <div className="flex items-start gap-2">
             <span className="text-amber-300 font-bold min-w-[130px]">

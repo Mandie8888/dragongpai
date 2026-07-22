@@ -21,10 +21,17 @@ import AIStocks from "./pages/AIStocks";
 import Watchlist from "./pages/Watchlist";
 import AIGames from "./pages/AIGames";
 import Dashboard from "./pages/Dashboard";
-import PaymentSuccess from "./pages/PaymentSuccess"; // ✅ NEW
+import PaymentSuccess from "./pages/PaymentSuccess";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+// Unified page wrapper with light yellow background
+const PageWrapper = ({ children }: { children: React.ReactNode }) => (
+  <div className="page-wrapper">
+    {children}
+  </div>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -34,26 +41,28 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/about" element={<About />} />
-              <Route path="/how-it-works" element={<HowItWorks />} />
-              <Route path="/pricing" element={<Pricing />} />
-              <Route path="/contact" element={<Contact />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/auth/callback" element={<AuthCallback />} />
-              <Route path="/terms" element={<Terms />} />
-              <Route path="/disclaimer" element={<Disclaimer />} />
-              <Route path="/privacy" element={<Privacy />} />
-              <Route path="/refund-policy" element={<RefundPolicy />} />
-              <Route path="/unsubscribe" element={<Unsubscribe />} />
-              <Route path="/ai-stocks" element={<AIStocks />} />
-              <Route path="/watchlist" element={<Watchlist />} />
-              <Route path="/ai-games" element={<AIGames />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/payment-success" element={<PaymentSuccess />} /> {/* ✅ NEW */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <PageWrapper>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/how-it-works" element={<HowItWorks />} />
+                <Route path="/pricing" element={<Pricing />} />
+                <Route path="/contact" element={<Contact />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/disclaimer" element={<Disclaimer />} />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/refund-policy" element={<RefundPolicy />} />
+                <Route path="/unsubscribe" element={<Unsubscribe />} />
+                <Route path="/ai-stocks" element={<AIStocks />} />
+                <Route path="/watchlist" element={<Watchlist />} />
+                <Route path="/ai-games" element={<AIGames />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/payment-success" element={<PaymentSuccess />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </PageWrapper>
           </BrowserRouter>
         </AuthProvider>
       </LanguageProvider>

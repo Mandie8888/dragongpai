@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
+    --background: 50 80% 98%;
     --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
@@ -36,7 +36,7 @@
 
     --radius: 0.75rem;
 
-    --sidebar-background: 210 40% 98%;
+    --sidebar-background: 50 80% 98%;
     --sidebar-foreground: 222 47% 11%;
     --sidebar-primary: 224 76% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
@@ -79,6 +79,8 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background: linear-gradient(180deg, #fefcf3 0%, #fef9e7 40%, #fefcf3 100%);
+    min-height: 100vh;
   }
 
   h1, h2, h3 {
@@ -86,26 +88,50 @@
   }
 }
 
-/* Glassmorphism utility */
+/* ── Unified Page Background ── */
+.page-wrapper {
+  background: linear-gradient(180deg, #fefcf3 0%, #fef9e7 40%, #fefcf3 100%);
+  min-height: 100vh;
+}
+
+/* ── Light Yellow Background for all content ── */
+.bg-page {
+  background: linear-gradient(180deg, #fefcf3 0%, #fef9e7 40%, #fefcf3 100%);
+}
+
+/* ── Override dark backgrounds ── */
+.bg-background,
+.bg-navy,
+.bg-primary\/5,
+.bg-card {
+  background: linear-gradient(180deg, #fefcf3 0%, #fef9e7 40%, #fefcf3 100%) !important;
+}
+
+/* ── Casino background override ── */
+.casino-bg-pattern {
+  background: linear-gradient(180deg, #fefcf3 0%, #fef9e7 40%, #fefcf3 100%) !important;
+}
+
+/* ── Glassmorphism utilities ── */
 .glass {
-  background: rgba(255, 255, 255, 0.70);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
-/* Casino glassmorphism — lighter opacity on dark bg + Sands Gold shadow */
+/* Casino glassmorphism — adapted for light theme */
 .glass-casino {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 4px 24px -6px hsl(43 74% 52% / 0.18);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  box-shadow: 0 4px 24px -6px rgba(212, 175, 55, 0.15);
 }
 
 /* Gold glassmorphism */
 .glass-gold {
-  background: rgba(255, 253, 245, 0.80);
+  background: rgba(255, 253, 245, 0.90);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid hsl(43 74% 52% / 0.25);
@@ -147,20 +173,21 @@
   box-shadow: 0 4px 18px -3px hsl(43 74% 52% / 0.5);
 }
 
-/* Felt texture for casino cards */
+/* Felt texture for casino cards - updated for light theme */
 .felt-card {
-  background: hsl(155 50% 18%);
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3), 0 4px 20px -4px rgba(0, 0, 0, 0.4);
-  border: 1px solid hsl(155 40% 25%);
+  background: #f5f0e8;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05), 0 4px 20px -4px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(212, 175, 55, 0.2);
 }
 
 /* Gold border card */
 .gold-card {
-  background: rgba(255, 253, 245, 0.90);
+  background: rgba(255, 253, 245, 0.95);
   border: 1px solid hsl(43 74% 52% / 0.35);
   box-shadow: 0 4px 20px -6px hsl(43 74% 52% / 0.15);
 }
 
+/* ── Animations ── */
 @keyframes scroll-left {
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }
@@ -216,25 +243,7 @@
   animation-play-state: paused;
 }
 
-/* Casino background pattern (roulette inspired) */
-.casino-bg-pattern {
-  background-image:
-    radial-gradient(ellipse at 20% 50%, hsl(160 40% 25% / 0.6) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, hsl(43 74% 52% / 0.08) 0%, transparent 40%),
-    radial-gradient(ellipse at 60% 80%, hsl(160 40% 22% / 0.4) 0%, transparent 50%),
-    radial-gradient(circle at 50% 0%, hsl(43 74% 52% / 0.05) 0%, transparent 30%);
-}
-
-/* Roulette decorative ring */
-.roulette-ring {
-  border: 3px solid hsl(43 74% 52% / 0.3);
-  border-radius: 50%;
-  box-shadow:
-    0 0 20px hsl(43 74% 52% / 0.1),
-    inset 0 0 20px hsl(43 74% 52% / 0.05);
-}
-
-/* ── Print styles for AI Report ── */
+/* ── Print styles ── */
 @media print {
   @page {
     size: A4 portrait;
@@ -266,7 +275,7 @@
     height: auto !important;
   }
 
-  /* ── Report container: compact, no padding waste ── */
+  /* ── Report container ── */
   .print-report {
     max-width: 100% !important;
     padding: 0 !important;
@@ -280,14 +289,13 @@
     margin-bottom: 2px !important;
   }
 
-  /* Borders for structure */
   .print-report > div {
     border: 1px solid #d1d5db !important;
     background: white !important;
     padding: 4px 6px !important;
   }
 
-  /* ── Header card: side-by-side icon + text ── */
+  /* ── Header card ── */
   .print-header-card {
     padding: 4px 6px !important;
     margin-bottom: 1px !important;
@@ -321,7 +329,6 @@
     color: black !important;
   }
 
-  /* Methodology badge — plain text in print */
   .print-method-badge {
     display: block !important;
     font-size: 14pt !important;
@@ -335,17 +342,14 @@
     margin-top: 3px !important;
   }
 
-  /* Hide screen-only elements in print */
   .print-hide {
     display: none !important;
   }
 
-  /* Hide language selector in print */
   .print-lang-toggle {
     display: none !important;
   }
 
-  /* Show bio/description in print but compact */
   .print-hide-detail {
     display: block !important;
     border: none !important;
@@ -361,12 +365,11 @@
     color: #222 !important;
   }
 
-  /* Hide simulation power stars — keep only bio */
   .print-hide-simpower {
     display: none !important;
   }
 
-  /* ── Config summary: compact ── */
+  /* ── Config summary ── */
   .print-config-summary {
     padding: 3px 6px !important;
     margin-bottom: 1px !important;
@@ -378,7 +381,7 @@
     line-height: 1.2 !important;
   }
 
-  /* ── Number prediction grid: maximize space ── */
+  /* ── Number prediction grid ── */
   .print-report .grid {
     gap: 2px !important;
     page-break-inside: avoid;
@@ -389,7 +392,7 @@
     border: 1px solid #d1d5db !important;
   }
 
-  /* ── Number balls: colored, bold white text ── */
+  /* ── Number balls ── */
   .print-report .rounded-full[class*="bg-"] {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
@@ -401,7 +404,6 @@
     border: 1.5px solid #000 !important;
   }
 
-  /* Banker numbers: thicker gold border in print */
   .print-report .rounded-full[class*="ring-amber"] {
     border: 2.5px solid #d4af37 !important;
     box-shadow: 0 0 0 1px #d4af37 !important;
@@ -415,20 +417,18 @@
   .print-report .bg-green-600,
   .print-report .bg-emerald-500 { background-color: #22c55e !important; color: white !important; }
 
-  /* Labels in config summary */
   .print-report .text-amber-300,
   .print-report .text-amber-400 {
     color: #000 !important;
     font-weight: 700 !important;
   }
 
-  /* ── Hide action buttons & links ── */
   .print-report .flex.flex-wrap.items-center.justify-center,
   .print-report a[href] {
     display: none !important;
   }
 
-  /* ── Frequency Analysis: print-only plain HTML ── */
+  /* ── Frequency Analysis ── */
   .print-freq-section {
     display: block !important;
     padding: 4px 6px !important;
@@ -495,7 +495,7 @@
     flex-shrink: 0 !important;
   }
 
-  /* ── Warning + footer combined row ── */
+  /* ── Warning + footer ── */
   .print-warning-footer {
     font-size: 6px !important;
     line-height: 1.1 !important;
@@ -515,7 +515,6 @@
     margin-top: 1px !important;
   }
 
-  /* ── Frequency labels: tighter for single page ── */
   .print-freq-num {
     font-size: 7px !important;
   }
@@ -528,7 +527,6 @@
     height: 9px !important;
   }
 
-  /* A4 layout with tight margins */
   @page {
     size: A4;
     margin: 6mm;

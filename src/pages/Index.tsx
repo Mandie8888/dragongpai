@@ -127,7 +127,7 @@ function Stars({ count }: { count: number }) {
   return (
     <div className="flex gap-0.5">
       {Array.from({ length: 5 }).map((_, i) => (
-        <Star key={i} size={14} className={i < count ? "fill-primary text-primary" : "text-muted-foreground"} />
+        <Star key={i} size={14} className={i < count ? "fill-blue-600 text-blue-600" : "text-gray-300"} />
       ))}
     </div>
   );
@@ -137,27 +137,27 @@ function TestimonialCard({ t }: { t: { name: string; stars: number; tag: string;
   return (
     <div className="flex-shrink-0 w-64 rounded-xl glass shadow-md p-4 space-y-2">
       <div className="flex items-center justify-between">
-        <span className="font-semibold text-sm">{t.name}</span>
+        <span className="font-semibold text-sm text-gray-800">{t.name}</span>
         <Stars count={t.stars} />
       </div>
-      <span className="text-xs font-medium text-accent">{t.tag}</span>
-      <p className="text-sm text-muted-foreground italic">"{t.quote}"</p>
+      <span className="text-xs font-medium text-blue-600">{t.tag}</span>
+      <p className="text-sm text-gray-600 italic">"{t.quote}"</p>
     </div>
   );
 }
 
 function StockCard({ s, labels, className }: { s: typeof stockPicks[0]; labels: typeof homeT.en; className?: string }) {
   return (
-    <div className={cn("rounded-xl glass shadow-md p-3 space-y-1 w-40 border-primary/20", className)}>
-      <p className="text-[10px] font-semibold text-primary tracking-wider uppercase">{labels.stockPickLabel}</p>
+    <div className={cn("rounded-xl glass shadow-md p-3 space-y-1 w-40 border-blue-200/50", className)}>
+      <p className="text-[10px] font-semibold text-blue-600 tracking-wider uppercase">{labels.stockPickLabel}</p>
       <div className="flex items-baseline gap-2">
-        <span className="text-sm font-bold text-foreground">{s.ticker}</span>
-        <span className="text-primary font-semibold text-xs">{s.price}</span>
+        <span className="text-sm font-bold text-gray-800">{s.ticker}</span>
+        <span className="text-blue-600 font-semibold text-xs">{s.price}</span>
       </div>
-      <p className="text-[10px] text-muted-foreground">{labels.aiProb} <span className="text-primary font-semibold">{s.prob}</span></p>
+      <p className="text-[10px] text-gray-500">{labels.aiProb} <span className="text-blue-600 font-semibold">{s.prob}</span></p>
       <div className="flex gap-2 text-[10px]">
-        <span className="text-primary">{labels.buy} {s.buy}</span>
-        <span className="text-accent">{labels.sell} {s.sell}</span>
+        <span className="text-blue-600">{labels.buy} {s.buy}</span>
+        <span className="text-blue-400">{labels.sell} {s.sell}</span>
       </div>
     </div>
   );
@@ -176,13 +176,13 @@ const Index = () => {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-page text-gray-800">
       {/* Fixed roaming stock cards - desktop only */}
       <div className="hidden md:block fixed z-[100] animate-roam-1 pointer-events-auto" style={{ top: 80, left: 16 }}>
-        <StockCard s={stockPicks[0]} labels={c} className="cursor-pointer hover:scale-105 hover:shadow-[0_0_20px_hsl(35,90%,55%,0.3)] transition-all duration-300" />
+        <StockCard s={stockPicks[0]} labels={c} className="cursor-pointer hover:scale-105 hover:shadow-[0_0_20px_rgba(37,99,235,0.2)] transition-all duration-300" />
       </div>
       <div className="hidden md:block fixed z-[100] animate-roam-2 pointer-events-auto" style={{ bottom: 24, left: 16 }}>
-        <StockCard s={stockPicks[1]} labels={c} className="cursor-pointer hover:scale-105 hover:shadow-[0_0_20px_hsl(35,90%,55%,0.3)] transition-all duration-300" />
+        <StockCard s={stockPicks[1]} labels={c} className="cursor-pointer hover:scale-105 hover:shadow-[0_0_20px_rgba(37,99,235,0.2)] transition-all duration-300" />
       </div>
 
       <Header />
@@ -191,10 +191,10 @@ const Index = () => {
       {/* Hero */}
       <section className="pt-4 pb-2 px-6">
         <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-3xl md:text-4xl font-extrabold leading-tight italic">
-            {c.heroTitle} <span className="text-accent">{c.heroAccent}</span>
+          <h1 className="text-3xl md:text-4xl font-extrabold leading-tight italic text-gray-800">
+            {c.heroTitle} <span className="text-blue-600">{c.heroAccent}</span>
           </h1>
-          <p className="mt-1.5 text-sm text-primary italic">
+          <p className="mt-1.5 text-sm text-blue-600 italic">
             {c.heroSub}
           </p>
         </div>
@@ -210,19 +210,19 @@ const Index = () => {
         {/* Floating gift card - desktop only */}
         <div className="hidden xl:block absolute right-6 top-0 z-50">
           <div className="animate-float-gift rounded-xl glass shadow-lg p-3 w-52 space-y-1.5 text-center transition-all duration-300 hover:scale-105 hover:shadow-xl">
-            <div className="flex items-center justify-center gap-2 text-primary">
+            <div className="flex items-center justify-center gap-2 text-blue-600">
               <Gift size={12} />
               <span className="text-[10px] font-semibold uppercase tracking-wider">{c.explorerGift}</span>
             </div>
-            <h3 className="text-sm font-bold">{c.freeReports}</h3>
-            <ul className="text-[11px] text-muted-foreground space-y-0.5">
+            <h3 className="text-sm font-bold text-gray-800">{c.freeReports}</h3>
+            <ul className="text-[11px] text-gray-500 space-y-0.5">
               <li>{c.fullProb}</li>
               <li>{c.trial48}</li>
             </ul>
-            <a href="/pricing" className="block w-full rounded-lg bg-primary py-1 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors">
+            <a href="/pricing" className="block w-full rounded-lg bg-blue-600 py-1 text-xs font-semibold text-white hover:bg-blue-700 transition-colors">
               {c.claimGift}
             </a>
-            <p className="text-[10px] text-muted-foreground">{c.noCard}</p>
+            <p className="text-[10px] text-gray-400">{c.noCard}</p>
           </div>
         </div>
 
@@ -230,51 +230,51 @@ const Index = () => {
         <div className="grid md:grid-cols-2 gap-4 xl:pr-60">
           {/* Why Join */}
           <div className="rounded-xl glass shadow-md p-4 space-y-3">
-            <h2 className="text-base font-bold text-accent italic">{c.whyJoin}</h2>
+            <h2 className="text-base font-bold text-blue-600 italic">{c.whyJoin}</h2>
             <div className="flex items-start gap-2.5">
-              <Clock className="text-primary mt-0.5 shrink-0" size={16} />
+              <Clock className="text-blue-500 mt-0.5 shrink-0" size={16} />
               <div>
-                <h3 className="font-semibold text-xs">{c.saveTime}</h3>
-                <p className="text-xs text-muted-foreground">{c.saveTimeDesc}</p>
+                <h3 className="font-semibold text-xs text-gray-700">{c.saveTime}</h3>
+                <p className="text-xs text-gray-500">{c.saveTimeDesc}</p>
               </div>
             </div>
             <div className="flex items-start gap-2.5">
-              <BarChart3 className="text-primary mt-0.5 shrink-0" size={16} />
+              <BarChart3 className="text-blue-500 mt-0.5 shrink-0" size={16} />
               <div>
-                <h3 className="font-semibold text-xs">{c.pureAI}</h3>
-                <p className="text-xs text-muted-foreground">{c.pureAIDesc}</p>
+                <h3 className="font-semibold text-xs text-gray-700">{c.pureAI}</h3>
+                <p className="text-xs text-gray-500">{c.pureAIDesc}</p>
               </div>
             </div>
           </div>
 
           {/* Our Mission */}
           <div className="rounded-xl glass shadow-md p-4 space-y-3">
-            <h2 className="text-base font-bold text-accent italic">{c.missionTitle}</h2>
+            <h2 className="text-base font-bold text-blue-600 italic">{c.missionTitle}</h2>
             <div className="flex items-start gap-2.5">
-              <Brain className="text-primary mt-0.5 shrink-0" size={16} />
-              <p className="text-xs text-muted-foreground">{c.missionDesc}</p>
+              <Brain className="text-blue-500 mt-0.5 shrink-0" size={16} />
+              <p className="text-xs text-gray-500">{c.missionDesc}</p>
             </div>
           </div>
 
           {/* Zero Pressure */}
           <div className="rounded-xl glass shadow-md p-4 space-y-3">
-            <h2 className="text-base font-bold text-accent italic">{c.zeroPressure}</h2>
+            <h2 className="text-base font-bold text-blue-600 italic">{c.zeroPressure}</h2>
             <div className="flex items-start gap-2.5">
-              <Shield className="text-primary mt-0.5 shrink-0" size={16} />
+              <Shield className="text-blue-500 mt-0.5 shrink-0" size={16} />
               <div>
-                <h3 className="font-semibold text-xs">{c.selfDecision}</h3>
-                <p className="text-xs text-muted-foreground">{c.selfDecisionDesc}</p>
+                <h3 className="font-semibold text-xs text-gray-700">{c.selfDecision}</h3>
+                <p className="text-xs text-gray-500">{c.selfDecisionDesc}</p>
               </div>
             </div>
           </div>
 
           {/* The DragonGP Standard */}
           <div id="stocks" className="rounded-xl glass shadow-md p-4 space-y-3">
-            <h2 className="text-base font-bold text-accent italic">{c.standard}</h2>
-            <p className="text-xs text-muted-foreground">{c.standardDesc}</p>
+            <h2 className="text-base font-bold text-blue-600 italic">{c.standard}</h2>
+            <p className="text-xs text-gray-500">{c.standardDesc}</p>
             <div className="flex gap-2.5 flex-wrap">
-              <a href="https://dragongpai.com/watchlist" className="rounded-lg border px-4 py-1.5 text-xs font-semibold hover:bg-card transition-colors">{c.watchlist}</a>
-              <a href="https://dragongpai.com/pricing" className="rounded-lg bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors">{c.pricePlan}</a>
+              <a href="https://dragongpai.com/watchlist" className="rounded-lg border border-blue-200 px-4 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors">{c.watchlist}</a>
+              <a href="https://dragongpai.com/pricing" className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors">{c.pricePlan}</a>
             </div>
           </div>
         </div>
