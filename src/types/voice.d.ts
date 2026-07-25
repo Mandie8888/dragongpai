@@ -24,3 +24,6 @@ interface SpeechRecognition extends EventTarget {
 interface SpeechRecognitionConstructor {
   new (): SpeechRecognition;
 }
+
+// Make sure this file is treated as a module
+export {};

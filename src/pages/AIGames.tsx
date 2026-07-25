@@ -1,14 +1,12 @@
-// AIGames.tsx - Updated with removed disclaimer and fixed flow
-
-import { useState } from "react";
-import { Link, useNavigate } } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useLanguage, type LangKey } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCredits } from "@/hooks/useCredits";
 import { supabase } from "@/integrations/supabase/client";
-import { Coins, Shield, Play, TrendingUp, Gamepad2, Download, FileText, Sparkles, Zap, BarChart3, ChevronDown, Dice5, Target, Crown } from "lucide-react";
+import { Coins, Shield, Play, TrendingUp, Gamepad2, Download, FileText, Sparkles, Zap, BarChart3, ChevronDown, Dice5, Target, Crown, Speaker, Volume2, VolumeX } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import { useToast } from "@/hooks/use-toast";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
@@ -20,6 +18,13 @@ import {
   type CharacterModel,
   type CharacterConfig,
 } from "@/components/ai-games/mark6-data";
+
+// Voice service imports
+import { 
+  isSpeechRecognitionSupported, 
+  speakText, 
+  stopSpeaking,
+} from "@/services/voiceService";
 
 import elonImg from "@/assets/elon-v2.png";
 import gamblingImg from "@/assets/gambling-v2.png";
@@ -42,7 +47,12 @@ const avatarMap: Record<string, string> = {
   "tiger-volatility": tigerVolatilityImg,
 };
 
-const langKeys: LangKey[] = ["en", "tc", "sc"];
+// Language options for the selector
+const UNIFIED_LANG_OPTIONS = [
+  { key: "en" as LangKey, label: "English" },
+  { key: "hk" as LangKey, label: "廣東話" },
+  { key: "cn" as LangKey, label: "國語" },
+];
 
 type LottoType = "hk" | "tw";
 
@@ -68,15 +78,241 @@ const AIGames = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [lottoType, setLottoType] = useState<LottoType>("hk");
   const [showHowToUse, setShowHowToUse] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [predictionSets, setPredictionSets] = useState<number[][]>([]);
 
   const hasAccess = subscription.subscribed || credits > 0 || creditsLoading;
-
   const isStartEnabled = !!activeCharacterId && !!activeConfig;
+
+  // Map UI language to voice language
+  const getVoiceLang = (): string => {
+    if (lang === 'tc') return 'zh-HK';
+    if (lang === 'sc') return 'zh-CN';
+    return 'en-US';
+  };
+
+  // Get display language for the selector
+  const getDisplayLang = (): LangKey => {
+    if (lang === 'tc') return 'hk';
+    if (lang === 'sc') return 'cn';
+    return 'en';
+  };
+
+  const currentDisplayLang = getDisplayLang();
+
+  // Generate prediction sets - SAME as Mark6FullReport
+  const generatePredictionSets = (config: CharacterConfig): number[][] => {
+    const bankerNums = config.type === "banker" ? config.bankerNumbers : [];
+    const sets: number[][] = [];
+
+    const shuffle = <T,>(arr: T[]): T[] => {
+      const result = [...arr];
+      for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+      }
+      return result;
+    };
+
+    for (let i = 0; i < 10; i++) {
+      let nums: number[] = [...bankerNums];
+      
+      if (nums.length >= 6) {
+        nums = nums.slice(0, 6);
+        sets.push([...nums].sort((a, b) => a - b));
+        continue;
+      }
+
+      const pool: number[] = [];
+      for (let n = 1; n <= 49; n++) {
+        if (!nums.includes(n)) pool.push(n);
+      }
+
+      let candidates: number[] = [];
+      
+      if (config.type === "pattern") {
+        const hotNums = [12, 18, 36, 44, 46, 31, 22, 3, 7, 14, 27, 35];
+        const coldNums = [43, 32, 25, 48, 47, 17, 4, 15, 20, 26];
+        const patternPool = config.pattern === "hot" ? hotNums : coldNums;
+        candidates = pool.filter(n => patternPool.includes(n));
+        if (candidates.length < (6 - nums.length)) {
+          const remaining = pool.filter(n => !candidates.includes(n));
+          const shuffled = shuffle(remaining);
+          const extra = shuffled.slice(0, (6 - nums.length) - candidates.length);
+          candidates = [...candidates, ...extra];
+        }
+      } else if (config.type === "distribution") {
+        const [firstTarget, secondTarget] = config.ratio.split("/").map(Number);
+        const total = firstTarget + secondTarget;
+        const needed = 6 - nums.length;
+        const firstCount = Math.round((firstTarget / total) * needed);
+        const secondCount = needed - firstCount;
+
+        const firstPool = config.mode === "odd-even" ? pool.filter(n => n % 2 !== 0) : pool.filter(n => n >= 25);
+        const secondPool = config.mode === "odd-even" ? pool.filter(n => n % 2 === 0) : pool.filter(n => n < 25);
+        
+        const shuffledFirst = shuffle(firstPool);
+        const shuffledSecond = shuffle(secondPool);
+        
+        const pickedFirst = shuffledFirst.slice(0, Math.min(firstCount, shuffledFirst.length));
+        const pickedSecond = shuffledSecond.slice(0, Math.min(secondCount, shuffledSecond.length));
+        
+        candidates = [...pickedFirst, ...pickedSecond];
+        
+        if (candidates.length < needed) {
+          const remaining = pool.filter(n => !candidates.includes(n));
+          const shuffled = shuffle(remaining);
+          const extra = shuffled.slice(0, needed - candidates.length);
+          candidates = [...candidates, ...extra];
+        }
+      } else if (config.type === "color") {
+        if (config.colorRatio) {
+          const [rTarget, bTarget, gTarget] = config.colorRatio.split(":").map(Number);
+          const total = rTarget + bTarget + gTarget;
+          const needed = 6 - nums.length;
+          const rCount = Math.round((rTarget / total) * needed);
+          const bCount = Math.round((bTarget / total) * needed);
+          const gCount = needed - rCount - bCount;
+          
+          const rPool = pool.filter(n => [1, 2, 7, 8, 12, 13, 18, 19, 23, 24, 29, 30, 34, 35, 40, 45, 46].includes(n));
+          const bPool = pool.filter(n => [3, 4, 9, 10, 14, 15, 20, 25, 26, 31, 36, 37, 41, 42, 47, 48].includes(n));
+          const gPool = pool.filter(n => [5, 6, 11, 16, 17, 21, 22, 27, 28, 32, 33, 38, 39, 43, 44, 49].includes(n));
+          
+          const shuffledR = shuffle(rPool);
+          const shuffledB = shuffle(bPool);
+          const shuffledG = shuffle(gPool);
+          
+          const pickedR = shuffledR.slice(0, Math.min(rCount, shuffledR.length));
+          const pickedB = shuffledB.slice(0, Math.min(bCount, shuffledB.length));
+          const pickedG = shuffledG.slice(0, Math.min(gCount, shuffledG.length));
+          
+          candidates = [...pickedR, ...pickedB, ...pickedG];
+        } else {
+          const colorArr = config.color === "red" ? [1, 2, 7, 8, 12, 13, 18, 19, 23, 24, 29, 30, 34, 35, 40, 45, 46] :
+                          config.color === "blue" ? [3, 4, 9, 10, 14, 15, 20, 25, 26, 31, 36, 37, 41, 42, 47, 48] :
+                          [5, 6, 11, 16, 17, 21, 22, 27, 28, 32, 33, 38, 39, 43, 44, 49];
+          const available = pool.filter(n => colorArr.includes(n));
+          const shuffled = shuffle(available);
+          const needed = Math.min(3, 6 - nums.length);
+          candidates = shuffled.slice(0, needed);
+        }
+        
+        if (candidates.length < (6 - nums.length)) {
+          const remaining = pool.filter(n => !candidates.includes(n));
+          const shuffled = shuffle(remaining);
+          const extra = shuffled.slice(0, (6 - nums.length) - candidates.length);
+          candidates = [...candidates, ...extra];
+        }
+      } else {
+        const shuffled = shuffle(pool);
+        candidates = shuffled.slice(0, 6 - nums.length);
+      }
+
+      for (const n of candidates) {
+        if (nums.length < 6 && !nums.includes(n)) {
+          nums.push(n);
+        }
+      }
+
+      while (nums.length < 6) {
+        const allNums: number[] = [];
+        for (let n = 1; n <= 49; n++) {
+          if (!nums.includes(n)) allNums.push(n);
+        }
+        const shuffled = shuffle(allNums);
+        nums.push(shuffled[0]);
+      }
+
+      for (const b of bankerNums) {
+        if (!nums.includes(b)) {
+          const nonBankers = nums.filter(n => !bankerNums.includes(n));
+          if (nonBankers.length > 0) {
+            const idx = nums.indexOf(nonBankers[Math.floor(Math.random() * nonBankers.length)]);
+            nums[idx] = b;
+          }
+        }
+      }
+
+      while (nums.length > 6) {
+        const nonBankers = nums.filter(n => !bankerNums.includes(n));
+        if (nonBankers.length > 0) {
+          const idx = nums.indexOf(nonBankers[Math.floor(Math.random() * nonBankers.length)]);
+          nums.splice(idx, 1);
+        } else {
+          nums.pop();
+        }
+      }
+
+      sets.push([...nums].sort((a, b) => a - b));
+    }
+    return sets;
+  };
+
+  // Speak the prediction with proper language
+  const speakPrediction = (character: CharacterModel, config: CharacterConfig, sets: number[][]) => {
+    if (!voiceEnabled || !character || sets.length === 0) return;
+    
+    stopSpeaking();
+    
+    const voiceLang = getVoiceLang();
+    const charName = character.name[lang] || character.name.en;
+    const methodName = character.method[lang] || character.method.en;
+    
+    // Get config description
+    let configDesc = '';
+    if (config.type === "banker") {
+      configDesc = lang === "en" ? `Banker numbers: ${config.bankerNumbers.join(', ')}` : 
+                   lang === "tc" ? `膽碼：${config.bankerNumbers.join('、')}` : 
+                   `胆码：${config.bankerNumbers.join('、')}`;
+    } else if (config.type === "pattern") {
+      configDesc = config.pattern === "hot" ? 
+        (lang === "en" ? "Hot Number Momentum" : lang === "tc" ? "熱門號碼動量" : "热门号码动量") :
+        (lang === "en" ? "Cold Number Breakout" : lang === "tc" ? "冷門號碼突破" : "冷门号码突破");
+    } else if (config.type === "auto") {
+      configDesc = lang === "en" ? "Monte Carlo Simulation" : lang === "tc" ? "蒙特卡羅模擬" : "蒙特卡罗模拟";
+    } else if (config.type === "distribution") {
+      configDesc = `${config.mode} (${config.ratio})`;
+    } else if (config.type === "color") {
+      configDesc = `${config.color}${config.colorRatio ? ` R:B:G = ${config.colorRatio}` : ''}`;
+    } else {
+      configDesc = lang === "en" ? "Autonomous Analysis" : lang === "tc" ? "自主分析" : "自主分析";
+    }
+
+    // Get the first set of numbers (6 numbers)
+    const firstSet = sets[0] || [];
+    
+    let message = '';
+    if (lang === "en") {
+      message = `Your AI partner ${charName} is using ${methodName}. ${configDesc}. The first set of predicted numbers are: ${firstSet.join(', ')}. Good luck to you!`;
+    } else if (lang === "tc") {
+      message = `您的 AI 夥伴 ${charName} 正在使用 ${methodName}。${configDesc}。第一組預測號碼是：${firstSet.join('、')}。祝您好運！`;
+    } else {
+      message = `您的 AI 伙伴 ${charName} 正在使用 ${methodName}。${configDesc}。第一组预测号码是：${firstSet.join('、')}。祝您好运！`;
+    }
+
+    console.log('Speaking message:', message);
+    console.log('Voice language:', voiceLang);
+    console.log('First set:', firstSet);
+
+    setIsSpeaking(true);
+    speakText(message, voiceLang as 'en-US' | 'zh-HK' | 'zh-CN');
+    
+    const checkSpeechEnd = setInterval(() => {
+      if (!window.speechSynthesis || !window.speechSynthesis.speaking) {
+        setIsSpeaking(false);
+        clearInterval(checkSpeechEnd);
+      }
+    }, 500);
+  };
 
   const handleReset = () => {
     setShowReport(false);
     setActiveCharacterId(null);
     setActiveConfig(null);
+    setPredictionSets([]);
+    stopSpeaking();
+    setIsSpeaking(false);
   };
 
   const handleStartGame = () => {
@@ -89,12 +325,10 @@ const AIGames = () => {
       setShowCreditsModal(true);
       return;
     }
-    // Skip disclaimer - go directly to report generation
     generateReport();
   };
 
   const generateReport = async () => {
-    // Deduct 1 credit via secure server-side function
     if (!subscription.subscribed && user) {
       const { error } = await supabase.rpc("deduct_credit", { p_report_type: "game" });
       if (error) {
@@ -105,8 +339,7 @@ const AIGames = () => {
       refetchCredits();
     }
 
-    // Save to analysis_history for dashboard
-    if (user && activeChar) {
+    if (user && activeChar && activeConfig) {
       await supabase.from("analysis_history").insert({
         user_id: user.id,
         report_type: "game",
@@ -117,7 +350,20 @@ const AIGames = () => {
       });
     }
     
-    setShowReport(true);
+    // Generate prediction sets before showing report
+    if (activeChar && activeConfig) {
+      const sets = generatePredictionSets(activeConfig);
+      setPredictionSets(sets);
+      
+      setShowReport(true);
+      
+      // Speak after report is shown
+      if (voiceEnabled) {
+        setTimeout(() => {
+          speakPrediction(activeChar, activeConfig, sets);
+        }, 800);
+      }
+    }
   };
 
   const handleCharacterSelect = (id: string, config: CharacterConfig) => {
@@ -135,6 +381,32 @@ const AIGames = () => {
     } else {
       return "AI 六合彩及台湾大乐透";
     }
+  };
+
+  const handleUnifiedLanguageChange = (newLang: LangKey) => {
+    let uiLang: LangKey;
+    if (newLang === 'hk') uiLang = 'tc';
+    else if (newLang === 'cn') uiLang = 'sc';
+    else uiLang = 'en';
+    setLang(uiLang);
+    
+    stopSpeaking();
+    setIsSpeaking(false);
+    
+    // If there's a report showing, re-speak in new language
+    if (showReport && activeChar && activeConfig && predictionSets.length > 0 && voiceEnabled) {
+      setTimeout(() => {
+        speakPrediction(activeChar, activeConfig, predictionSets);
+      }, 500);
+    }
+  };
+
+  const toggleVoice = () => {
+    if (voiceEnabled) {
+      stopSpeaking();
+      setIsSpeaking(false);
+    }
+    setVoiceEnabled(!voiceEnabled);
   };
 
   return (
@@ -156,7 +428,8 @@ const AIGames = () => {
           <Mark6FullReport 
             character={activeChar} 
             config={activeConfig} 
-            onReset={handleReset} 
+            onReset={handleReset}
+            initialPredictions={predictionSets}
           />
         ) : (
           <>
@@ -187,23 +460,48 @@ const AIGames = () => {
                 </div>
               )}
 
-              {/* Language toggle */}
-              <div className="flex items-center justify-center gap-1 text-sm bg-[#0d2618]/70 rounded-full px-4 py-2 backdrop-blur-sm border border-[#d4af37]/20">
-                {langKeys.map((lk, i) => (
-                  <span key={lk} className="flex items-center gap-1">
-                    {i > 0 && <span className="text-[#d4af37]/30 mx-1">|</span>}
-                    <button
-                      onClick={() => setLang(lk)}
-                      className={`px-3 py-1 rounded-full transition-all ${
-                        lang === lk 
-                          ? "bg-[#d4af37] text-[#1a3a2a] font-bold shadow-lg shadow-[#d4af37]/30" 
-                          : "text-[#f5e6c8]/60 hover:text-[#f5e6c8] hover:bg-[#1a3a2a]/50"
-                      }`}
-                    >
-                      {t.langTabs[i]}
-                    </button>
-                  </span>
-                ))}
+              {/* Language toggle - Unified with Voice Language */}
+              <div className="flex items-center justify-center gap-2">
+                <div className="flex items-center gap-1 text-sm bg-[#0d2618]/70 rounded-full px-4 py-2 backdrop-blur-sm border border-[#d4af37]/20">
+                  {UNIFIED_LANG_OPTIONS.map((opt, i) => (
+                    <span key={opt.key} className="flex items-center gap-1">
+                      {i > 0 && <span className="text-[#d4af37]/30 mx-1">|</span>}
+                      <button
+                        onClick={() => handleUnifiedLanguageChange(opt.key)}
+                        className={`px-3 py-1 rounded-full transition-all ${
+                          currentDisplayLang === opt.key
+                            ? "bg-[#d4af37] text-[#1a3a2a] font-bold shadow-lg shadow-[#d4af37]/30" 
+                            : "text-[#f5e6c8]/60 hover:text-[#f5e6c8] hover:bg-[#1a3a2a]/50"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                
+                {/* Voice Toggle Button */}
+                <button
+                  onClick={toggleVoice}
+                  className={`p-2 rounded-full transition-all ${
+                    voiceEnabled 
+                      ? "bg-[#d4af37]/20 border border-[#d4af37]/30 text-[#d4af37] hover:bg-[#d4af37]/30" 
+                      : "bg-[#1a3a2a]/50 border border-[#d4af37]/10 text-[#f5e6c8]/30 hover:bg-[#1a3a2a]/70"
+                  }`}
+                  title={voiceEnabled ? (lang === "en" ? "Voice enabled" : lang === "tc" ? "語音已啟用" : "语音已启用") : (lang === "en" ? "Voice disabled" : lang === "tc" ? "語音已關閉" : "语音已关闭")}
+                >
+                  {voiceEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+                </button>
+                
+                {/* Speaking indicator */}
+                {isSpeaking && (
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-[10px] text-emerald-400 font-medium">
+                      {lang === "en" ? "Speaking..." : lang === "tc" ? "朗讀中..." : "朗读中..."}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Lotto Type Selector */}

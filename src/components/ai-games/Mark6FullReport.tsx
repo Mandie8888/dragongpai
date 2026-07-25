@@ -44,7 +44,7 @@ const labels = {
     red: "Red (紅/红)",
     blue: "Blue (藍/蓝)",
     green: "Green (綠/绿)",
-    langTabs: ["English", "繁體中文", "简体中文"],
+    langTabs: ["English", "廣東話", "國語"],
     configSummary: "⚙️ Configuration Summary",
     activeChar: "Active Character",
     selectedBankers: "Selected Bankers (膽)",
@@ -60,6 +60,7 @@ const labels = {
     constrainedLabel: "★ Banker",
     noCharacter: "No character selected",
     goBack: "Go Back",
+    setLabel: "Set",
   },
   tc: {
     prediction: " 的戰略預測",
@@ -77,7 +78,7 @@ const labels = {
     red: "紅",
     blue: "藍",
     green: "綠",
-    langTabs: ["English", "繁體中文", "简体中文"],
+    langTabs: ["English", "廣東話", "國語"],
     configSummary: "⚙️ 配置摘要",
     activeChar: "活躍角色",
     selectedBankers: "已選膽碼 (膽)",
@@ -93,6 +94,7 @@ const labels = {
     constrainedLabel: "★ 膽",
     noCharacter: "未選擇角色",
     goBack: "返回",
+    setLabel: "組",
   },
   sc: {
     prediction: " 的战略预测",
@@ -110,7 +112,7 @@ const labels = {
     red: "红",
     blue: "蓝",
     green: "绿",
-    langTabs: ["English", "繁體中文", "简体中文"],
+    langTabs: ["English", "廣東話", "國語"],
     configSummary: "⚙️ 配置摘要",
     activeChar: "活跃角色",
     selectedBankers: "已选胆码 (胆)",
@@ -126,6 +128,7 @@ const labels = {
     constrainedLabel: "★ 胆",
     noCharacter: "未选择角色",
     goBack: "返回",
+    setLabel: "组",
   },
 };
 
@@ -135,104 +138,148 @@ const REDS = [1, 2, 7, 8, 12, 13, 18, 19, 23, 24, 29, 30, 34, 35, 40, 45, 46];
 const BLUES = [3, 4, 9, 10, 14, 15, 20, 25, 26, 31, 36, 37, 41, 42, 47, 48];
 const GREENS = [5, 6, 11, 16, 17, 21, 22, 27, 28, 32, 33, 38, 39, 43, 44, 49];
 
-/** Generate 10 sets of 6 numbers respecting character config as hard constraints */
+/** Generate exactly 6 numbers per set */
 const generatePredictions = (config: CharacterConfig): number[][] => {
   const bankerNums = config.type === "banker" ? config.bankerNumbers : [];
   const sets: number[][] = [];
 
+  const shuffle = <T,>(arr: T[]): T[] => {
+    const result = [...arr];
+    for (let i = result.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+  };
+
   for (let i = 0; i < 10; i++) {
-    const nums = new Set<number>();
+    let nums: number[] = [...bankerNums];
+    
+    if (nums.length >= 6) {
+      nums = nums.slice(0, 6);
+      sets.push([...nums].sort((a, b) => a - b));
+      continue;
+    }
 
-    // Step 1: ALWAYS add ALL banker numbers first — hard constraint
-    bankerNums.forEach((n) => nums.add(n));
+    const pool: number[] = [];
+    for (let n = 1; n <= 49; n++) {
+      if (!nums.includes(n)) pool.push(n);
+    }
 
-    // Step 2: Build pool & enforce constraints
-    const allPool: number[] = [];
-    for (let n = 1; n <= 49; n++) allPool.push(n);
-
+    let candidates: number[] = [];
+    
     if (config.type === "pattern") {
       const hotNums = [12, 18, 36, 44, 46, 31, 22, 3, 7, 14, 27, 35];
       const coldNums = [43, 32, 25, 48, 47, 17, 4, 15, 20, 26];
-      let pool = [...allPool];
-      if (config.pattern === "hot") {
-        pool = [...pool, ...hotNums, ...hotNums, ...hotNums];
-      } else {
-        pool = [...pool, ...coldNums, ...coldNums, ...coldNums];
-      }
-      const remaining = pool.filter((n) => !nums.has(n));
-      while (nums.size < 6) {
-        const pick = remaining[Math.floor(Math.random() * remaining.length)];
-        if (pick && !nums.has(pick)) nums.add(pick);
+      const patternPool = config.pattern === "hot" ? hotNums : coldNums;
+      candidates = pool.filter(n => patternPool.includes(n));
+      if (candidates.length < (6 - nums.length)) {
+        const remaining = pool.filter(n => !candidates.includes(n));
+        const shuffled = shuffle(remaining);
+        const extra = shuffled.slice(0, (6 - nums.length) - candidates.length);
+        candidates = [...candidates, ...extra];
       }
     } else if (config.type === "distribution") {
       const [firstTarget, secondTarget] = config.ratio.split("/").map(Number);
-      const needed = 6 - nums.size;
       const total = firstTarget + secondTarget;
-      const firstCount = total > 0 ? Math.round((firstTarget / total) * needed) : Math.floor(needed / 2);
+      const needed = 6 - nums.length;
+      const firstCount = Math.round((firstTarget / total) * needed);
       const secondCount = needed - firstCount;
 
-      let firstPool: number[];
-      let secondPool: number[];
-      if (config.mode === "odd-even") {
-        firstPool = allPool.filter((n) => !nums.has(n) && n % 2 !== 0);
-        secondPool = allPool.filter((n) => !nums.has(n) && n % 2 === 0);
-      } else {
-        firstPool = allPool.filter((n) => !nums.has(n) && n >= 25);
-        secondPool = allPool.filter((n) => !nums.has(n) && n < 25);
+      const firstPool = config.mode === "odd-even" ? pool.filter(n => n % 2 !== 0) : pool.filter(n => n >= 25);
+      const secondPool = config.mode === "odd-even" ? pool.filter(n => n % 2 === 0) : pool.filter(n => n < 25);
+      
+      const shuffledFirst = shuffle(firstPool);
+      const shuffledSecond = shuffle(secondPool);
+      
+      const pickedFirst = shuffledFirst.slice(0, Math.min(firstCount, shuffledFirst.length));
+      const pickedSecond = shuffledSecond.slice(0, Math.min(secondCount, shuffledSecond.length));
+      
+      candidates = [...pickedFirst, ...pickedSecond];
+      
+      if (candidates.length < needed) {
+        const remaining = pool.filter(n => !candidates.includes(n));
+        const shuffled = shuffle(remaining);
+        const extra = shuffled.slice(0, needed - candidates.length);
+        candidates = [...candidates, ...extra];
       }
-
-      const shuffleAndPick = (pool: number[], count: number) => {
-        const shuffled = pool.sort(() => Math.random() - 0.5);
-        return shuffled.slice(0, count);
-      };
-
-      shuffleAndPick(firstPool, firstCount).forEach((n) => nums.add(n));
-      shuffleAndPick(secondPool, secondCount).forEach((n) => nums.add(n));
-
-      const fallback = allPool.filter((n) => !nums.has(n)).sort(() => Math.random() - 0.5);
-      let fi = 0;
-      while (nums.size < 6 && fi < fallback.length) { nums.add(fallback[fi++]); }
     } else if (config.type === "color") {
       if (config.colorRatio) {
         const [rTarget, bTarget, gTarget] = config.colorRatio.split(":").map(Number);
-        const needed = 6 - nums.size;
         const total = rTarget + bTarget + gTarget;
-        const rCount = total > 0 ? Math.round((rTarget / total) * needed) : 2;
-        const bCount = total > 0 ? Math.round((bTarget / total) * needed) : 2;
+        const needed = 6 - nums.length;
+        const rCount = Math.round((rTarget / total) * needed);
+        const bCount = Math.round((bTarget / total) * needed);
         const gCount = needed - rCount - bCount;
-
-        const pick = (pool: number[], count: number) => {
-          const available = pool.filter((n) => !nums.has(n)).sort(() => Math.random() - 0.5);
-          return available.slice(0, Math.max(0, count));
-        };
-        pick(REDS, rCount).forEach((n) => nums.add(n));
-        pick(BLUES, bCount).forEach((n) => nums.add(n));
-        pick(GREENS, gCount).forEach((n) => nums.add(n));
+        
+        const rPool = pool.filter(n => REDS.includes(n));
+        const bPool = pool.filter(n => BLUES.includes(n));
+        const gPool = pool.filter(n => GREENS.includes(n));
+        
+        const shuffledR = shuffle(rPool);
+        const shuffledB = shuffle(bPool);
+        const shuffledG = shuffle(gPool);
+        
+        const pickedR = shuffledR.slice(0, Math.min(rCount, shuffledR.length));
+        const pickedB = shuffledB.slice(0, Math.min(bCount, shuffledB.length));
+        const pickedG = shuffledG.slice(0, Math.min(gCount, shuffledG.length));
+        
+        candidates = [...pickedR, ...pickedB, ...pickedG];
       } else {
-        const colorPool = config.color === "red" ? REDS : config.color === "blue" ? BLUES : GREENS;
-        const needed = 6 - nums.size;
-        const colorTarget = Math.min(3, needed);
-        const available = colorPool.filter((n) => !nums.has(n)).sort(() => Math.random() - 0.5);
-        for (let j = 0; j < colorTarget && j < available.length; j++) nums.add(available[j]);
+        const colorArr = config.color === "red" ? REDS : config.color === "blue" ? BLUES : GREENS;
+        const available = pool.filter(n => colorArr.includes(n));
+        const shuffled = shuffle(available);
+        const needed = Math.min(3, 6 - nums.length);
+        candidates = shuffled.slice(0, needed);
       }
-
-      const fallback = allPool.filter((n) => !nums.has(n)).sort(() => Math.random() - 0.5);
-      let fi = 0;
-      while (nums.size < 6 && fi < fallback.length) { nums.add(fallback[fi++]); }
+      
+      if (candidates.length < (6 - nums.length)) {
+        const remaining = pool.filter(n => !candidates.includes(n));
+        const shuffled = shuffle(remaining);
+        const extra = shuffled.slice(0, (6 - nums.length) - candidates.length);
+        candidates = [...candidates, ...extra];
+      }
     } else {
-      // "none", "auto", "banker" — fill remaining slots randomly
-      const remaining = allPool.filter((n) => !nums.has(n)).sort(() => Math.random() - 0.5);
-      let ri = 0;
-      while (nums.size < 6 && ri < remaining.length) { nums.add(remaining[ri++]); }
+      const shuffled = shuffle(pool);
+      candidates = shuffled.slice(0, 6 - nums.length);
     }
 
-    // Step 3: SAFETY — verify all bankers are present (should always be true)
-    const finalSet = [...nums];
+    for (const n of candidates) {
+      if (nums.length < 6 && !nums.includes(n)) {
+        nums.push(n);
+      }
+    }
+
+    while (nums.length < 6) {
+      const allNums: number[] = [];
+      for (let n = 1; n <= 49; n++) {
+        if (!nums.includes(n)) allNums.push(n);
+      }
+      const shuffled = shuffle(allNums);
+      nums.push(shuffled[0]);
+    }
+
     for (const b of bankerNums) {
-      if (!finalSet.includes(b)) finalSet.push(b);
+      if (!nums.includes(b)) {
+        const nonBankers = nums.filter(n => !bankerNums.includes(n));
+        if (nonBankers.length > 0) {
+          const idx = nums.indexOf(nonBankers[Math.floor(Math.random() * nonBankers.length)]);
+          nums[idx] = b;
+        }
+      }
     }
 
-    sets.push(finalSet.sort((a, b) => a - b).slice(0, Math.max(6, finalSet.length)));
+    while (nums.length > 6) {
+      const nonBankers = nums.filter(n => !bankerNums.includes(n));
+      if (nonBankers.length > 0) {
+        const idx = nums.indexOf(nonBankers[Math.floor(Math.random() * nonBankers.length)]);
+        nums.splice(idx, 1);
+      } else {
+        nums.pop();
+      }
+    }
+
+    sets.push([...nums].sort((a, b) => a - b));
   }
   return sets;
 };
@@ -283,11 +330,12 @@ interface Props {
   character: CharacterModel;
   config: CharacterConfig;
   onReset: () => void;
+  initialPredictions?: number[][];
 }
 
 const langKeys: LangKey[] = ["en", "tc", "sc"];
 
-const Mark6FullReport = ({ character, config, onReset }: Props) => {
+const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Props) => {
   const { lang, setLang } = useLanguage();
   const t = labels[lang];
   
@@ -316,7 +364,14 @@ const Mark6FullReport = ({ character, config, onReset }: Props) => {
     );
   }
 
-  const predictions = useState(() => generatePredictions(config))[0];
+  // Use initialPredictions if provided, otherwise generate new ones
+  const [predictions, setPredictions] = useState<number[][]>(() => {
+    if (initialPredictions && initialPredictions.length > 0) {
+      return initialPredictions;
+    }
+    return generatePredictions(config);
+  });
+  
   const freqData = computeFreqFromSets(predictions);
   const constrainedNums = getConstrainedNumbers(config);
   const [showDragon, setShowDragon] = useState(true);
@@ -364,19 +419,25 @@ const Mark6FullReport = ({ character, config, onReset }: Props) => {
         )}
       </AnimatePresence>
 
-      {/* Language toggle — hidden in print */}
+      {/* Language toggle — hidden in print - Updated labels */}
       <div className="flex items-center justify-center gap-1 text-sm print-lang-toggle">
-        {langKeys.map((lk, i) => (
-          <span key={lk} className="flex items-center gap-1">
-            {i > 0 && <span className="text-white/30 mx-1">|</span>}
-            <button
-              onClick={() => setLang(lk)}
-              className={`transition-colors ${lang === lk ? "text-amber-300 font-semibold [text-shadow:0_0_6px_rgba(245,158,11,0.4)]" : "text-white/50 hover:text-white/80"}`}
-            >
-              {t.langTabs[i]}
-            </button>
-          </span>
-        ))}
+        {langKeys.map((lk, i) => {
+          let displayLabel = '';
+          if (lk === 'en') displayLabel = 'English';
+          else if (lk === 'tc') displayLabel = '廣東話';
+          else if (lk === 'sc') displayLabel = '國語';
+          return (
+            <span key={lk} className="flex items-center gap-1">
+              {i > 0 && <span className="text-white/30 mx-1">|</span>}
+              <button
+                onClick={() => setLang(lk)}
+                className={`transition-colors ${lang === lk ? "text-amber-300 font-semibold [text-shadow:0_0_6px_rgba(245,158,11,0.4)]" : "text-white/50 hover:text-white/80"}`}
+              >
+                {displayLabel}
+              </button>
+            </span>
+          );
+        })}
       </div>
 
       {/* Header Card */}
@@ -430,11 +491,22 @@ const Mark6FullReport = ({ character, config, onReset }: Props) => {
         </div>
       </div>
 
-      {/* ── Configuration Summary ── */}
+      {/* ── Configuration Summary with Date ── */}
       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 backdrop-blur-md p-5 print-config-summary">
-        <div className="flex items-center gap-2 mb-3">
-          <Settings2 size={18} className="text-amber-400" />
-          <h3 className="text-base font-bold text-amber-400">{t.configSummary}</h3>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Settings2 size={18} className="text-amber-400" />
+            <h3 className="text-base font-bold text-amber-400">{t.configSummary}</h3>
+          </div>
+          <span className="text-xs text-[#f5e6c8]/50">
+            {new Date().toLocaleDateString(lang === 'en' ? 'en-US' : lang === 'tc' ? 'zh-HK' : 'zh-CN', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}
+          </span>
         </div>
         <div className="grid grid-cols-1 gap-2 text-sm">
           <div className="flex items-start gap-2">
@@ -464,12 +536,15 @@ const Mark6FullReport = ({ character, config, onReset }: Props) => {
         </div>
       </div>
 
-      {/* 10 Prediction Sets */}
+      {/* 10 Prediction Sets - Each set has EXACTLY 6 numbers */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {predictions.map((set, i) => (
           <div key={i} className="rounded-xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-md p-4 print-prediction-set">
             <div className="flex items-center gap-2">
-              <span className={`w-7 h-7 rounded-full ${getBallColor(i + 1)} text-white text-xs font-bold flex items-center justify-center`}>{i + 1}</span>
+              {/* Set number indicator - plain text with circle border, NO background color */}
+              <span className="w-7 h-7 rounded-full border border-white/30 text-white/60 text-[10px] font-bold flex items-center justify-center shrink-0">
+                {i + 1}
+              </span>
               <div className="flex gap-1.5 flex-wrap">
                 {set.map((n) => {
                   const isBanker = constrainedNums.has(n);

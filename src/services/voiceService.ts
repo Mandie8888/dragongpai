@@ -11,7 +11,7 @@ export const getSpeechRecognition = () => {
   return SpeechRecognition;
 };
 
-// Text-to-Speech function
+// Text-to-Speech function with proper language support
 export const speakText = (text: string, language: 'en-US' | 'zh-HK' | 'zh-CN' = 'en-US'): void => {
   if (!window.speechSynthesis) {
     console.warn('Speech synthesis not supported');
@@ -26,17 +26,16 @@ export const speakText = (text: string, language: 'en-US' | 'zh-HK' | 'zh-CN' = 
   // Set language
   utterance.lang = language;
   
-  // Get available voices and try to find a natural-sounding one
+  // Get available voices
   const voices = window.speechSynthesis.getVoices();
   
-  // Try to find a good voice for the language
+  // Try to find the best voice for the language
   let selectedVoice = null;
   
   if (language === 'zh-HK') {
     // Try Cantonese voices
     selectedVoice = voices.find(v => v.lang.includes('zh-HK') || v.lang.includes('yue'));
     if (!selectedVoice) {
-      // Fallback to any Chinese voice
       selectedVoice = voices.find(v => v.lang.includes('zh'));
     }
   } else if (language === 'zh-CN') {
@@ -49,6 +48,9 @@ export const speakText = (text: string, language: 'en-US' | 'zh-HK' | 'zh-CN' = 
     // English
     selectedVoice = voices.find(v => v.lang.includes('en-US') && v.name.includes('Google'));
     if (!selectedVoice) {
+      selectedVoice = voices.find(v => v.lang.includes('en-US'));
+    }
+    if (!selectedVoice) {
       selectedVoice = voices.find(v => v.lang.includes('en'));
     }
   }
@@ -57,8 +59,8 @@ export const speakText = (text: string, language: 'en-US' | 'zh-HK' | 'zh-CN' = 
     utterance.voice = selectedVoice;
   }
 
-  // Adjust speech parameters for better naturalness
-  utterance.rate = 0.9; // Slightly slower for clarity
+  // Adjust speech parameters
+  utterance.rate = 0.9;
   utterance.pitch = 1.0;
   utterance.volume = 1.0;
 
@@ -72,13 +74,12 @@ export const stopSpeaking = (): void => {
   }
 };
 
-// Parse the analysis text into sections for better TTS
+// Parse analysis into sections for better TTS
 export const parseAnalysisForSpeech = (text: string): string[] => {
   const sections = [];
   const lines = text.split('\n');
   let currentSection = '';
   
-  // Identify section headers
   const sectionHeaders = [
     'Investment Analysis', 'Summary', 'Technical Analysis', 
     'Fundamental Analysis', 'News & Risk Analysis', 
@@ -90,7 +91,6 @@ export const parseAnalysisForSpeech = (text: string): string[] => {
   ];
   
   for (const line of lines) {
-    // Check if line is a section header
     const isHeader = sectionHeaders.some(header => line.includes(header));
     
     if (isHeader && currentSection) {
@@ -110,14 +110,14 @@ export const parseAnalysisForSpeech = (text: string): string[] => {
   return sections.length > 0 ? sections : [text];
 };
 
-// Clean text for speech - remove markdown and symbols
+// Clean text for speech
 export const cleanTextForSpeech = (text: string): string => {
   return text
-    .replace(/\*\*/g, '') // Remove bold markers
-    .replace(/\*/g, '') // Remove bullet points
-    .replace(/[📊📈📉🔥⭐⚠️✅]/g, '') // Remove emojis
-    .replace(/\d\.\s/g, '') // Remove numbered list prefixes
-    .replace(/•/g, '') // Remove bullet points
-    .replace(/\s+/g, ' ') // Normalize spaces
+    .replace(/\*\*/g, '')
+    .replace(/\*/g, '')
+    .replace(/[📊📈📉🔥⭐⚠️✅]/g, '')
+    .replace(/\d\.\s/g, '')
+    .replace(/•/g, '')
+    .replace(/\s+/g, ' ')
     .trim();
 };

@@ -1,3 +1,4 @@
+// src/hooks/useStockData.ts
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -31,23 +32,28 @@ export interface LiveStockData {
   forwardDividendRate: number | null;
   exDividendDate: string | null;
   operatingCashFlowPerShare: number | null;
-  // Market depth
   bid: number;
   ask: number;
   bidSize: number;
   askSize: number;
   dayRange: string;
-  // Market status
-  marketState: string; // "REGULAR" | "PRE" | "POST" | "CLOSED" | "PREPRE" | "POSTPOST"
-  // Company info
+  marketState: string;
   companyDescription: string;
-  // News
   news: StockNewsItem[];
+  averageVolume?: number | null;
+  regularMarketOpen?: number | null;
+  regularMarketDayHigh?: number | null;
+  regularMarketDayLow?: number | null;
+  beta?: number | null;
+  // Technical indicators
+  rsi?: number | null;
+  macd?: number | null;
+  macdSignal?: number | null;
+  macdHistogram?: number | null;
 }
 
-// Simple in-memory cache (ticker → data + timestamp)
 const cache: Record<string, { data: LiveStockData; ts: number }> = {};
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 5 * 60 * 1000;
 
 export const useStockData = () => {
   const [loading, setLoading] = useState(false);
@@ -56,7 +62,6 @@ export const useStockData = () => {
   const fetchStockData = useCallback(async (symbol: string): Promise<LiveStockData | null> => {
     const ticker = symbol.toUpperCase();
 
-    // Check cache
     const cached = cache[ticker];
     if (cached && Date.now() - cached.ts < CACHE_TTL) {
       return cached.data;
@@ -71,14 +76,55 @@ export const useStockData = () => {
       });
 
       if (fnError) {
+        console.error('Edge Function error:', fnError);
         throw new Error(fnError.message);
       }
 
       if (data?.error) {
+        console.error('Data error:', data.error);
         throw new Error(data.error);
       }
 
-      // Provide defaults for new fields to handle backward compatibility
+      console.log(`📊 ${ticker} data received:`, data);
+
+      // Format market cap
+      let marketCapStr = data.marketCap || "N/A";
+      if (data.marketCap && typeof data.marketCap === 'number') {
+        const num = data.marketCap;
+        if (num >= 1e12) {
+          marketCapStr = `$${(num / 1e12).toFixed(1)}T`;
+        } else if (num >= 1e9) {
+          marketCapStr = `$${(num / 1e9).toFixed(1)}B`;
+        } else if (num >= 1e6) {
+          marketCapStr = `$${(num / 1e6).toFixed(1)}M`;
+        } else {
+          marketCapStr = `$${num.toFixed(0)}`;
+        }
+      }
+
+      // Format PE
+      let peValue: number | null = null;
+      if (data.pe !== null && data.pe !== undefined && data.pe !== 'N/A') {
+        peValue = typeof data.pe === 'number' ? data.pe : parseFloat(data.pe);
+        if (isNaN(peValue)) peValue = null;
+      }
+
+      // Format ROE
+      let roeValue: number | null = null;
+      if (data.roe !== null && data.roe !== undefined && data.roe !== 'N/A') {
+        roeValue = typeof data.roe === 'number' ? data.roe : parseFloat(data.roe);
+        if (isNaN(roeValue)) roeValue = null;
+      }
+
+      // Format dividend yield
+      let dividendYieldValue = 0;
+      if (data.dividendYield !== null && data.dividendYield !== undefined && data.dividendYield !== 'N/A') {
+        dividendYieldValue = typeof data.dividendYield === 'number' ? data.dividendYield : parseFloat(data.dividendYield);
+        if (isNaN(dividendYieldValue)) dividendYieldValue = 0;
+      }
+
+      const currency = data.currency || "USD";
+
       const liveData: LiveStockData = {
         symbol: data.symbol ?? ticker,
         name: data.name ?? ticker,
@@ -91,14 +137,14 @@ export const useStockData = () => {
         yearLow: data.yearLow ?? 0,
         volume: data.volume ?? "N/A",
         volumeRaw: data.volumeRaw ?? 0,
-        marketCap: data.marketCap ?? "N/A",
-        pe: data.pe ?? null,
-        sector: data.sector ?? "",
-        industry: data.industry ?? "",
-        currency: data.currency ?? "USD",
-        roe: data.roe ?? null,
+        marketCap: marketCapStr,
+        pe: peValue,
+        sector: data.sector ?? "N/A",
+        industry: data.industry ?? "N/A",
+        currency: currency,
+        roe: roeValue,
         debtToEquity: data.debtToEquity ?? null,
-        dividendYield: data.dividendYield ?? 0,
+        dividendYield: dividendYieldValue,
         forwardDividendRate: data.forwardDividendRate ?? null,
         exDividendDate: data.exDividendDate ?? null,
         operatingCashFlowPerShare: data.operatingCashFlowPerShare ?? null,
@@ -110,6 +156,16 @@ export const useStockData = () => {
         marketState: data.marketState ?? "CLOSED",
         companyDescription: data.companyDescription ?? "",
         news: data.news ?? [],
+        averageVolume: data.averageVolume ?? null,
+        regularMarketOpen: data.regularMarketOpen ?? null,
+        regularMarketDayHigh: data.regularMarketDayHigh ?? null,
+        regularMarketDayLow: data.regularMarketDayLow ?? null,
+        beta: data.beta ?? null,
+        // Technical indicators from Yahoo Finance
+        rsi: data.rsi ?? null,
+        macd: data.macd ?? null,
+        macdSignal: data.macdSignal ?? null,
+        macdHistogram: data.macdHistogram ?? null,
       };
 
       cache[ticker] = { data: liveData, ts: Date.now() };
