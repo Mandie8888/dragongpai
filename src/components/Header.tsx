@@ -1,12 +1,14 @@
+// src/components/Header.tsx
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
 import dragonLogo from "@/assets/dragon-logo.png";
-import { Globe, Menu, LogOut, Coins, ChevronDown, LayoutDashboard, Star, Settings } from "lucide-react";
+import { Globe, Menu, LogOut, Coins, ChevronDown, LayoutDashboard, Star, Settings, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCredits } from "@/hooks/useCredits";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useLanguage, type LangKey } from "@/contexts/LanguageContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const navLabels = {
   en: ["Home", "About us", "How it Works", "AI Stocks", "My Watchlist", "AI Mark6/Lotto"],
@@ -137,11 +139,10 @@ const Header = () => {
   const { user, signOut } = useAuth();
   const { credits } = useCredits();
   const location = useLocation();
+  const isMobile = useIsMobile();
 
-  // Light green header background
   const navClass = "sticky top-0 z-50 bg-gradient-to-r from-green-50 via-green-100/80 to-green-50 border-b border-green-200/50 shadow-sm";
 
-  // Blue text for links, bold blue with underline when active
   const linkColor = (path: string) => {
     const isActive = location.pathname === path || (path !== "/" && location.pathname.startsWith(path));
     return isActive 
@@ -154,11 +155,14 @@ const Header = () => {
   return (
     <nav className={navClass}>
       <div className="mx-auto max-w-7xl flex items-center justify-between px-6 py-2">
+        {/* Logo */}
         <Link to="/" className="flex-shrink-0">
           <div className={logoBox}>
             <img src={dragonLogo} alt="DragonGPAi.com" className="h-12 w-12 object-contain" />
           </div>
         </Link>
+
+        {/* Desktop Navigation */}
         <div className="hidden md:flex items-center gap-6">
           {navHrefs.map((href, i) => (
             <Link 
@@ -170,6 +174,8 @@ const Header = () => {
             </Link>
           ))}
         </div>
+
+        {/* Right Side */}
         <div className="flex items-center gap-3">
           {user && (
             <div className="hidden md:flex items-center gap-1.5 rounded-full bg-white/80 border border-green-200/50 px-3 py-1.5 text-sm shadow-sm">
@@ -177,7 +183,9 @@ const Header = () => {
               <span className="font-semibold text-gray-800">{credits}</span>
             </div>
           )}
+          
           <LanguageDropdown activeLang={lang} onChange={setLang} className="hidden md:inline-flex" />
+          
           {user ? (
             <UserDropdown user={user} signOut={signOut} />
           ) : (
@@ -188,60 +196,123 @@ const Header = () => {
               Join/Login
             </Link>
           )}
-          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger asChild>
-              <button className="md:hidden p-2 text-blue-600 hover:text-blue-800 transition-colors">
-                <Menu size={24} />
-              </button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-72 pt-12 bg-white/95 backdrop-blur-md">
-              <nav className="flex flex-col gap-4">
-                <LanguageDropdown activeLang={lang} onChange={(l) => { setLang(l); }} className="mb-2" />
-                {navHrefs.map((href, i) => {
-                  const isActive = location.pathname === href || (href !== "/" && location.pathname.startsWith(href));
-                  return (
-                    <Link 
-                      key={href} 
-                      to={href} 
-                      onClick={() => setMobileOpen(false)} 
-                      className={`text-base transition-colors px-2 py-1.5 ${
-                        isActive 
-                          ? "text-blue-700 font-bold" 
-                          : "text-gray-600 hover:text-blue-700"
-                      }`}
-                    >
-                      {navLabels[lang][i]}
-                    </Link>
-                  );
-                })}
-                {user ? (
-                  <>
-                    <div className="px-2 py-2 text-xs text-gray-500">Welcome back, <span className="text-blue-700 font-semibold">{user.email?.split("@")[0]}</span>!</div>
-                    <div className="border-t border-gray-200 my-1" />
-                    <Link to="/dashboard" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-2 py-2 text-base text-gray-600 hover:text-blue-700 transition-colors">
-                      <LayoutDashboard size={16} /> Dashboard
-                    </Link>
-                    <Link to="/watchlist" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-2 py-2 text-base text-gray-600 hover:text-blue-700 transition-colors">
-                      <Star size={16} /> My Watchlist
-                    </Link>
-                    <Link to="/pricing" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-2 py-2 text-base text-gray-600 hover:text-blue-700 transition-colors">
-                      <Settings size={16} /> Settings
-                    </Link>
-                    <div className="border-t border-gray-200 my-1" />
-                    <button onClick={() => { signOut(); setMobileOpen(false); }} className="flex items-center gap-3 w-full px-2 py-2 text-base text-red-400 hover:text-red-500 transition-colors">
-                      <LogOut size={16} /> Logout
-                    </button>
-                  </>
-                ) : (
-                  <Link to="/auth" onClick={() => setMobileOpen(false)} className="mt-4 rounded-full bg-blue-600 px-6 py-2.5 text-sm font-bold text-white text-center shadow-md hover:bg-blue-700 transition-all">
-                    Join/Login
-                  </Link>
-                )}
-              </nav>
-            </SheetContent>
-          </Sheet>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="md:hidden p-2 text-blue-600 hover:text-blue-800 transition-colors"
+          >
+            <Menu size={24} />
+          </button>
         </div>
       </div>
+
+      {/* Mobile Menu Overlay - FIXED with clearly visible Logout */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 top-[72px] z-50 bg-white/98 backdrop-blur-md animate-in slide-in-from-right">
+          <div className="flex flex-col h-full overflow-y-auto">
+            {/* Close Button */}
+            <div className="flex justify-end px-4 py-2">
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Navigation Links */}
+            <nav className="flex-1 px-6 py-4 space-y-1">
+              <LanguageDropdown activeLang={lang} onChange={(l) => { setLang(l); }} className="mb-4 w-full" />
+              
+              {navHrefs.map((href, i) => {
+                const isActive = location.pathname === href || (href !== "/" && location.pathname.startsWith(href));
+                return (
+                  <Link 
+                    key={href} 
+                    to={href} 
+                    onClick={() => setMobileOpen(false)} 
+                    className={`flex items-center px-3 py-3 rounded-lg text-base transition-colors ${
+                      isActive 
+                        ? "bg-blue-50 text-blue-700 font-bold" 
+                        : "text-gray-600 hover:bg-gray-50 hover:text-blue-700"
+                    }`}
+                  >
+                    {navLabels[lang][i]}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* User Section with Logout - Always at bottom */}
+            {user && (
+              <div className="border-t border-gray-200 px-6 py-4 bg-gray-50/50">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
+                    {user.email?.charAt(0).toUpperCase() || "U"}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">
+                      {user.email?.split("@")[0] || "User"}
+                    </p>
+                    <p className="text-xs text-gray-500">{user.email}</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-1">
+                  <Link 
+                    to="/dashboard" 
+                    onClick={() => setMobileOpen(false)} 
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-100 hover:text-blue-700 transition-colors"
+                  >
+                    <LayoutDashboard size={16} /> Dashboard
+                  </Link>
+                  <Link 
+                    to="/watchlist" 
+                    onClick={() => setMobileOpen(false)} 
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-100 hover:text-blue-700 transition-colors"
+                  >
+                    <Star size={16} /> My Watchlist
+                  </Link>
+                  <Link 
+                    to="/pricing" 
+                    onClick={() => setMobileOpen(false)} 
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-100 hover:text-blue-700 transition-colors"
+                  >
+                    <Settings size={16} /> Settings
+                  </Link>
+                </div>
+
+                {/* LOGOUT BUTTON - CLEARLY VISIBLE */}
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <button 
+                    onClick={() => { 
+                      signOut(); 
+                      setMobileOpen(false); 
+                    }} 
+                    className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 transition-colors font-semibold"
+                  >
+                    <LogOut size={18} />
+                    Logout
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!user && (
+              <div className="border-t border-gray-200 px-6 py-6">
+                <Link 
+                  to="/auth" 
+                  onClick={() => setMobileOpen(false)} 
+                  className="block w-full rounded-full bg-blue-600 px-6 py-3 text-sm font-bold text-white text-center shadow-md hover:bg-blue-700 transition-all"
+                >
+                  Join/Login
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </nav>
   );
 };
