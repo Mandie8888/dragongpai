@@ -10,106 +10,107 @@ const corsHeaders = {
 const ALPHA_VANTAGE_API_KEY = Deno.env.get("ALPHA_VANTAGE_API_KEY") || "";
 
 console.log("Hello from fetch-stock-quote!");
+console.log(`Alpha Vantage API Key set: ${ALPHA_VANTAGE_API_KEY ? "✅ Yes" : "❌ No"}`);
 
-// Fallback data for common stocks when Alpha Vantage is rate-limited
+// Fallback data for common stocks - UPDATED with trailingPE field
 const FALLBACK_DATA: Record<string, any> = {
   "NBIS": {
     marketCap: 47674466000,
-    peRatio: 85.35,
+    trailingPE: 85.35,  // Changed from peRatio to trailingPE
     roe: 0.141,
     sector: "COMMUNICATION SERVICES",
     industry: "INTERNET CONTENT & INFORMATION",
-    description: "Nebius Group N.V. (Ticker: NBIS) is an innovative technology firm that specializes in advanced digital solutions to enhance client engagement and operational efficiency across diverse sectors. By integrating cutting-edge cloud computing, artificial intelligence, and data analytics, Nebius enables businesses to adeptly manage the complexities of today's digital landscape.",
+    description: "Nebius Group N.V. (Ticker: NBIS) is an innovative technology firm that specializes in advanced digital solutions to enhance client engagement and operational efficiency across diverse sectors.",
     beta: 1.402,
+  },
+  "0700.HK": {
+    marketCap: 5120000000000,
+    trailingPE: 22.8,  // Changed from peRatio to trailingPE
+    roe: 0.185,
+    sector: "TECHNOLOGY",
+    industry: "INTERNET SERVICES",
+    description: "Tencent Holdings Limited provides value-added services and online advertising services.",
+    beta: 0.8,
   },
   "TSLA": {
     marketCap: 1170000000000,
-    peRatio: 75.8,
+    trailingPE: 75.8,
     roe: 0.224,
     sector: "CONSUMER CYCLICAL",
     industry: "AUTOMOBILES",
-    description: "Tesla, Inc. designs, develops, manufactures, and sells electric vehicles, energy generation and storage systems. It operates through Automotive and Energy Generation and Storage segments.",
+    description: "Tesla, Inc. designs, develops, manufactures, and sells electric vehicles.",
     beta: 2.1,
   },
   "NVDA": {
     marketCap: 1020000000000,
-    peRatio: 62.5,
+    trailingPE: 62.5,
     roe: 0.448,
     sector: "TECHNOLOGY",
     industry: "SEMICONDUCTORS",
-    description: "NVIDIA Corporation provides graphics and compute solutions. It operates through Graphics and Compute & Networking segments, offering GPUs, AI platforms, data center solutions, and automotive computing products.",
+    description: "NVIDIA Corporation provides graphics and compute solutions.",
     beta: 1.6,
   },
   "AAPL": {
     marketCap: 3580000000000,
-    peRatio: 30.2,
+    trailingPE: 30.2,
     roe: 1.609,
     sector: "TECHNOLOGY",
     industry: "CONSUMER ELECTRONICS",
-    description: "Apple Inc. designs, manufactures, and markets smartphones, personal computers, tablets, wearables, and accessories. It offers iPhone, Mac, iPad, Apple Watch, AirPods, and related services.",
+    description: "Apple Inc. designs, manufactures, and markets smartphones, personal computers, tablets, wearables, and accessories.",
     beta: 1.2,
   },
   "MSFT": {
     marketCap: 3260000000000,
-    peRatio: 35.8,
+    trailingPE: 35.8,
     roe: 0.385,
     sector: "TECHNOLOGY",
     industry: "SOFTWARE",
-    description: "Microsoft Corporation develops and supports software, services, devices, and solutions. Its products include Office, Windows, Azure cloud platform, LinkedIn, GitHub, Xbox gaming, and AI services including Copilot.",
+    description: "Microsoft Corporation develops and supports software, services, devices, and solutions.",
     beta: 0.9,
   },
   "GOOGL": {
     marketCap: 2380000000000,
-    peRatio: 25.4,
+    trailingPE: 25.4,
     roe: 0.276,
     sector: "COMMUNICATION SERVICES",
     industry: "INTERNET SERVICES",
-    description: "Alphabet Inc. offers various products and platforms including Google Search, YouTube, Android, Chrome, Google Cloud, and Waymo autonomous driving technology.",
+    description: "Alphabet Inc. offers various products and platforms including Google Search, YouTube, Android, and Google Cloud.",
     beta: 1.0,
   },
   "AMZN": {
     marketCap: 2340000000000,
-    peRatio: 58.3,
+    trailingPE: 58.3,
     roe: 0.182,
     sector: "CONSUMER CYCLICAL",
     industry: "E-COMMERCE",
-    description: "Amazon.com, Inc. engages in the retail sale of consumer products, advertising, and subscription services through online and physical stores. It also provides AWS cloud computing services.",
+    description: "Amazon.com, Inc. engages in the retail sale of consumer products and provides AWS cloud computing services.",
     beta: 1.2,
   },
   "META": {
     marketCap: 1750000000000,
-    peRatio: 28.1,
+    trailingPE: 28.1,
     roe: 0.287,
     sector: "COMMUNICATION SERVICES",
     industry: "SOCIAL MEDIA",
-    description: "Meta Platforms, Inc. develops products that enable people to connect and share through mobile devices, PCs, virtual reality headsets, and wearables. It operates Facebook, Instagram, Messenger, WhatsApp, and Meta Quest.",
+    description: "Meta Platforms, Inc. develops products that enable people to connect and share through mobile devices, PCs, virtual reality headsets, and wearables.",
     beta: 1.3,
   },
   "SPCX": {
     marketCap: 50000000000,
-    peRatio: 85.35,
+    trailingPE: 85.35,
     roe: 0.141,
     sector: "AEROSPACE & DEFENSE",
     industry: "SPACE EXPLORATION",
-    description: "Space Exploration Technologies Corp. (SpaceX) designs, manufactures, and launches advanced rockets and spacecraft. It offers Falcon launch vehicles, Dragon spacecraft, Starlink satellite internet, and Starship spacecraft.",
+    description: "Space Exploration Technologies Corp. (SpaceX) designs, manufactures, and launches advanced rockets and spacecraft.",
     beta: 1.8,
-  },
-  "0700.HK": {
-    marketCap: 5120000000000,
-    peRatio: 22.8,
-    roe: 0.185,
-    sector: "TECHNOLOGY",
-    industry: "INTERNET SERVICES",
-    description: "Tencent Holdings Limited provides value-added services (VAS) and online advertising services. It operates through VAS, Online Advertising, FinTech and Business Services, and Others segments.",
-    beta: 0.8,
   },
   "2330.TW": {
     marketCap: 49600000000000,
-    peRatio: 28.4,
+    trailingPE: 28.4,
     roe: 0.268,
     sector: "TECHNOLOGY",
     industry: "SEMICONDUCTORS",
-    description: "Taiwan Semiconductor Manufacturing Company Limited manufactures and sells integrated circuits and semiconductors. It is the world's largest dedicated independent semiconductor foundry.",
+    description: "Taiwan Semiconductor Manufacturing Company Limited manufactures and sells integrated circuits and semiconductors.",
     beta: 1.1,
   },
 };
@@ -143,48 +144,39 @@ function calculateMACD(closes: number[]): { macd: number; signal: number; histog
   if (closes.length < 26) return null;
   
   const prices = closes.slice(-26);
+  const currentPrice = prices[prices.length - 1] || 1;
   
-  // Calculate EMA 12
   const ema12 = prices.slice(-12).reduce((a, b) => a + b, 0) / 12;
-  
-  // Calculate EMA 26
   const ema26 = prices.slice(-26).reduce((a, b) => a + b, 0) / 26;
   
-  // Calculate MACD line (EMA12 - EMA26)
-  const macd = ema12 - ema26;
+  const rawMacd = ema12 - ema26;
   
-  // Calculate Signal line (9-period EMA of MACD)
-  // We use a simple average for the signal line
   const signalPeriod = 9;
   const signalPrices = prices.slice(-signalPeriod);
-  const signal = signalPrices.reduce((a, b) => a + b, 0) / signalPeriod;
+  const rawSignal = signalPrices.reduce((a, b) => a + b, 0) / signalPeriod;
   
-  // Calculate Histogram (MACD - Signal)
-  const histogram = macd - signal;
+  const rawHistogram = rawMacd - rawSignal;
   
-  // Normalize MACD values for better display
-  // Divide by the stock price to get percentage-based values
-  const currentPrice = prices[prices.length - 1];
-  const normalizationFactor = currentPrice > 0 ? currentPrice / 100 : 100;
+  const normalizationFactor = currentPrice / 100;
   
   return { 
-    macd: parseFloat((macd / normalizationFactor).toFixed(2)),
-    signal: parseFloat((signal / normalizationFactor).toFixed(2)),
-    histogram: parseFloat((histogram / normalizationFactor).toFixed(2))
+    macd: parseFloat((rawMacd / normalizationFactor).toFixed(2)),
+    signal: parseFloat((rawSignal / normalizationFactor).toFixed(2)),
+    histogram: parseFloat((rawHistogram / normalizationFactor).toFixed(2))
   };
 }
 
 // Function to fetch fundamental data from Alpha Vantage with fallback
 async function fetchAlphaVantageData(symbol: string) {
-  // First, check if we have fallback data
   const upperSymbol = symbol.toUpperCase();
+  
   if (FALLBACK_DATA[upperSymbol]) {
     console.log(`📦 Using fallback data for ${upperSymbol}`);
     return FALLBACK_DATA[upperSymbol];
   }
 
   if (!ALPHA_VANTAGE_API_KEY || ALPHA_VANTAGE_API_KEY === "") {
-    console.log("⚠️ Alpha Vantage API key not set. Using fallback data if available.");
+    console.log("⚠️ Alpha Vantage API key not set.");
     return null;
   }
 
@@ -201,8 +193,7 @@ async function fetchAlphaVantageData(symbol: string) {
     const data = await response.json();
     
     if (data.Note || data.Information) {
-      console.log("Alpha Vantage rate limit or error:", data.Note || data.Information);
-      // Try fallback data if available
+      console.log("Alpha Vantage rate limit:", data.Note || data.Information);
       if (FALLBACK_DATA[upperSymbol]) {
         console.log(`📦 Using fallback data for ${upperSymbol} due to rate limit`);
         return FALLBACK_DATA[upperSymbol];
@@ -219,7 +210,7 @@ async function fetchAlphaVantageData(symbol: string) {
     
     return {
       marketCap: data.MarketCapitalization ? parseFloat(data.MarketCapitalization) : null,
-      peRatio: data.PERatio ? parseFloat(data.PERatio) : null,
+      trailingPE: data.TrailingPE ? parseFloat(data.TrailingPE) : null,
       roe: data.ReturnOnEquityTTM ? parseFloat(data.ReturnOnEquityTTM) : null,
       sector: data.Sector || "",
       industry: data.Industry || "",
@@ -227,11 +218,9 @@ async function fetchAlphaVantageData(symbol: string) {
       beta: data.Beta ? parseFloat(data.Beta) : null,
       fiftyTwoWeekHigh: data["52WeekHigh"] ? parseFloat(data["52WeekHigh"]) : null,
       fiftyTwoWeekLow: data["52WeekLow"] ? parseFloat(data["52WeekLow"]) : null,
-      trailingPE: data.TrailingPE ? parseFloat(data.TrailingPE) : null,
     };
   } catch (err) {
     console.error("Error fetching Alpha Vantage data:", err);
-    // Try fallback data on error
     if (FALLBACK_DATA[upperSymbol]) {
       console.log(`📦 Using fallback data for ${upperSymbol} due to error`);
       return FALLBACK_DATA[upperSymbol];
@@ -260,7 +249,7 @@ serve(async (req) => {
     
     const response = await fetch(yahooUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       },
     });
 
@@ -314,6 +303,7 @@ serve(async (req) => {
       console.log(`📊 ${symbol} - MACD: ${macdData.macd.toFixed(2)}, Signal: ${macdData.signal.toFixed(2)}, Histogram: ${macdData.histogram.toFixed(2)}`);
     }
 
+    // Define dayHigh and dayLow
     const allHighs = quotes?.high || [];
     const allLows = quotes?.low || [];
     const validHighs = allHighs.filter((h: number) => h !== null && h > 0);
@@ -334,7 +324,6 @@ serve(async (req) => {
     const currency = meta.currency || "USD";
     const marketState = meta.marketState || "CLOSED";
 
-    // Fetch fundamental data from Alpha Vantage with fallback
     console.log(`🔍 Fetching fundamental data for ${symbol}...`);
     const avData = await fetchAlphaVantageData(symbol);
     
@@ -355,29 +344,20 @@ serve(async (req) => {
       if (avData.industry) industry = avData.industry;
       if (avData.description) companyDescription = avData.description;
       if (avData.marketCap) marketCap = avData.marketCap;
-      if (avData.trailingPE) trailingPE = avData.trailingPE;
+      if (avData.trailingPE !== null && avData.trailingPE !== undefined) {
+        trailingPE = avData.trailingPE;
+        console.log(`📊 PE Ratio from fallback: ${trailingPE}`);
+      }
       if (avData.roe !== null && avData.roe !== undefined) roe = avData.roe;
       if (avData.beta) beta = avData.beta;
       if (avData.fiftyTwoWeekHigh) fiftyTwoWeekHigh = avData.fiftyTwoWeekHigh;
       if (avData.fiftyTwoWeekLow) fiftyTwoWeekLow = avData.fiftyTwoWeekLow;
-    } else {
-      console.log("⚠️ No fundamental data available, using Yahoo fallback");
     }
+
+    console.log(`📊 Final PE Ratio: ${trailingPE}, ROE: ${roe}, Market Cap: ${marketCap}`);
 
     const yearHigh = fiftyTwoWeekHigh || meta.fiftyTwoWeekHigh || price * 1.35;
     const yearLow = fiftyTwoWeekLow || meta.fiftyTwoWeekLow || price * 0.65;
-
-    // Determine MACD status based on histogram
-    let macdStatus = "Neutral";
-    if (macdData) {
-      if (macdData.histogram > 0.3) {
-        macdStatus = "Bullish";
-      } else if (macdData.histogram < -0.3) {
-        macdStatus = "Bearish";
-      } else {
-        macdStatus = "Neutral";
-      }
-    }
 
     const responseData = {
       symbol: meta.symbol || symbol,
@@ -415,23 +395,9 @@ serve(async (req) => {
       macd: macdData?.macd || 0,
       macdSignal: macdData?.signal || 0,
       macdHistogram: macdData?.histogram || 0,
-      macdStatus: macdStatus,
     };
 
-    console.log("📤 Returning data with:", {
-      price: responseData.price,
-      change: responseData.change,
-      rsi: responseData.rsi,
-      macd: responseData.macd,
-      macdSignal: responseData.macdSignal,
-      macdHistogram: responseData.macdHistogram,
-      macdStatus: responseData.macdStatus,
-      marketCap: responseData.marketCap,
-      pe: responseData.pe,
-      roe: responseData.roe,
-      sector: responseData.sector,
-      industry: responseData.industry,
-    });
+    console.log("📤 Returning PE:", responseData.pe);
 
     return new Response(
       JSON.stringify(responseData),

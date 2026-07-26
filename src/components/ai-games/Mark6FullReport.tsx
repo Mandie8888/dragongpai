@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useLanguage, type LangKey } from "@/contexts/LanguageContext";
 import type { CharacterModel, CharacterConfig } from "./mark6-data";
 import { getBallColor } from "./mark6-data";
-import { Printer, ArrowLeft, TrendingUp, MessageCircle, Shield, AlertTriangle, Settings2 } from "lucide-react";
+import { Printer, ArrowLeft, TrendingUp, MessageCircle, Shield, AlertTriangle, Settings2, Download, Facebook } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer, Legend } from "recharts";
 
@@ -39,6 +39,8 @@ const labels = {
     warning: "⚠️ Gambling is harmful to health. This is purely an AI mathematical exercise. Please do not take it seriously or become addicted. We are not responsible for any consequences.",
     print: "Print Report",
     share: "Share",
+    saveAsText: "Save as Text",
+    facebookShare: "Facebook",
     returnGame: "Return to Game",
     goStocks: "Go to AI Stocks Probability",
     red: "Red (紅/红)",
@@ -61,6 +63,8 @@ const labels = {
     noCharacter: "No character selected",
     goBack: "Go Back",
     setLabel: "Set",
+    saved: "Report saved as text file!",
+    facebookShared: "Shared to Facebook!",
   },
   tc: {
     prediction: " 的戰略預測",
@@ -73,6 +77,8 @@ const labels = {
     warning: "⚠️ 賭博有害健康。本網站純粹為 AI 數學練習。請勿認真對待或沉迷。我們不對任何後果負責。",
     print: "列印報告",
     share: "分享",
+    saveAsText: "儲存為文字",
+    facebookShare: "Facebook",
     returnGame: "返回遊戲",
     goStocks: "前往 AI 股票概率",
     red: "紅",
@@ -95,6 +101,8 @@ const labels = {
     noCharacter: "未選擇角色",
     goBack: "返回",
     setLabel: "組",
+    saved: "報告已儲存為文字檔案！",
+    facebookShared: "已分享到 Facebook！",
   },
   sc: {
     prediction: " 的战略预测",
@@ -107,6 +115,8 @@ const labels = {
     warning: "⚠️ 赌博有害健康。本网站纯粹为 AI 数学练习。请勿认真对待或沉迷。我们不对任何后果负责。",
     print: "打印报告",
     share: "分享",
+    saveAsText: "保存为文本",
+    facebookShare: "Facebook",
     returnGame: "返回游戏",
     goStocks: "前往 AI 股票概率",
     red: "红",
@@ -129,6 +139,8 @@ const labels = {
     noCharacter: "未选择角色",
     goBack: "返回",
     setLabel: "组",
+    saved: "报告已保存为文本文件！",
+    facebookShared: "已分享到 Facebook！",
   },
 };
 
@@ -382,6 +394,7 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
   }, []);
 
   const handlePrint = () => window.print();
+  
   const handleShare = () => {
     const partnerLabel = character.name?.[lang] || character.name?.en || character.id;
     const text = lang === "en"
@@ -391,6 +404,89 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
         : `我刚在 DragonGPAi.com 上用 ${partnerLabel} 进行了 AI 概率分析！🐲🎯 查看：${window.location.origin}/ai-games`;
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, "_blank");
+  };
+
+  const handleFacebookShare = () => {
+    const url = window.location.href;
+    const partnerLabel = character.name?.[lang] || character.name?.en || character.id;
+    const numbers = predictions.slice(0, 3).map(set => set.join(", ")).join(" | ");
+    const text = lang === "en"
+      ? `My AI Mark 6 predictions from ${partnerLabel}: ${numbers} 🐲🎯`
+      : lang === "tc"
+        ? `我的 AI Mark 6 預測號碼（來自 ${partnerLabel}）：${numbers} 🐲🎯`
+        : `我的 AI Mark 6 预测号码（来自 ${partnerLabel}）：${numbers} 🐲🎯`;
+    
+    const fbShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}`;
+    window.open(fbShareUrl, '_blank', 'width=600,height=400');
+  };
+
+  const handleSaveAsText = () => {
+    const el = document.getElementById("mark6-full-report");
+    if (!el) return;
+    
+    // Build a formatted report
+    const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const partnerLabel = character.name?.[lang] || character.name?.en || character.id;
+    const charMethodLabel = character.method?.[lang] || character.method?.en || '';
+    const allNumbers = predictions.map((set, i) => `${i + 1}. ${set.join(", ")}`).join("\n");
+    
+    // Get frequency data as text
+    const freqText = freqData.map(d => `${d.num} (${d.count}x)`).join(", ");
+    
+    // Get config description
+    const configDesc = getConfigDescription(config, lang);
+    
+    let reportText = "";
+    if (lang === "en") {
+      reportText = `AI MARK 6 PROBABILITY REPORT\n`;
+      reportText += `==============================\n\n`;
+      reportText += `AI Partner: ${partnerLabel}\n`;
+      reportText += `Methodology: ${charMethodLabel}\n`;
+      reportText += `Configuration: ${configDesc}\n`;
+      reportText += `Generated: ${dateStr}\n\n`;
+      reportText += `PREDICTED NUMBER SETS (10 sets):\n`;
+      reportText += `${allNumbers}\n\n`;
+      reportText += `📊 NUMBER FREQUENCY ANALYSIS (Top 15):\n`;
+      reportText += `${freqText}\n\n`;
+      reportText += `⚠️ Disclaimer: This report is generated by a mathematical AI model for educational and mental stimulation purposes only.\n`;
+      reportText += `This does NOT predict lottery results. Please do not take it seriously or become addicted.\n\n`;
+      reportText += `Report created by DragonGPAi.com, powered by Gemini — ${dateStr}`;
+    } else if (lang === "tc") {
+      reportText = `AI MARK 6 概率報告\n`;
+      reportText += `==============================\n\n`;
+      reportText += `AI 夥伴：${partnerLabel}\n`;
+      reportText += `方法論：${charMethodLabel}\n`;
+      reportText += `配置：${configDesc}\n`;
+      reportText += `生成日期：${dateStr}\n\n`;
+      reportText += `預測號碼組合 (10 組)：\n`;
+      reportText += `${allNumbers}\n\n`;
+      reportText += `📊 號碼頻率分析 (前 15 名)：\n`;
+      reportText += `${freqText}\n\n`;
+      reportText += `⚠️ 免責聲明：本報告由數學 AI 模型生成，僅供教育和認知刺激之用。\n`;
+      reportText += `此報告不能預測彩票結果。請勿認真對待或沉迷。\n\n`;
+      reportText += `報告由 DragonGPAi.com 製作，由 Gemini 提供支持 — ${dateStr}`;
+    } else {
+      reportText = `AI MARK 6 概率报告\n`;
+      reportText += `==============================\n\n`;
+      reportText += `AI 伙伴：${partnerLabel}\n`;
+      reportText += `方法论：${charMethodLabel}\n`;
+      reportText += `配置：${configDesc}\n`;
+      reportText += `生成日期：${dateStr}\n\n`;
+      reportText += `预测号码组合 (10 组)：\n`;
+      reportText += `${allNumbers}\n\n`;
+      reportText += `📊 号码频率分析 (前 15 名)：\n`;
+      reportText += `${freqText}\n\n`;
+      reportText += `⚠️ 免责声明：本报告由数学 AI 模型生成，仅供教育和认知刺激之用。\n`;
+      reportText += `此报告不能预测彩票结果。请勿认真对待或沉迷。\n\n`;
+      reportText += `报告由 DragonGPAi.com 制作，由 Gemini 提供支持 — ${dateStr}`;
+    }
+
+    const blob = new Blob([reportText], { type: "text/plain;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `mark6-report-${dateStr.replace(/\s/g, "-")}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   };
 
   const stars = 3;
@@ -419,7 +515,7 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
         )}
       </AnimatePresence>
 
-      {/* Language toggle — hidden in print - Updated labels */}
+      {/* Language toggle — hidden in print */}
       <div className="flex items-center justify-center gap-1 text-sm print-lang-toggle">
         {langKeys.map((lk, i) => {
           let displayLabel = '';
@@ -634,15 +730,36 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
         </p>
       </div>
 
-      {/* Action Bar */}
-      <div className="flex flex-wrap items-center justify-center gap-3 pt-2 print-hide">
-        <button onClick={handlePrint} className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors">
+      {/* Action Bar - UPDATED with Save as Text and Facebook buttons */}
+      <div className="flex flex-wrap items-center justify-center gap-2 pt-2 print-hide">
+        <button 
+          onClick={handlePrint} 
+          className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
+        >
           <Printer size={16} /> {t.print}
         </button>
-        <button onClick={handleShare} className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors">
+        <button 
+          onClick={handleShare} 
+          className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-[#25D366] text-white hover:bg-[#1da851] transition-colors"
+        >
           <MessageCircle size={16} /> {t.share}
         </button>
-        <button onClick={onReset} className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold bg-amber-500 text-black hover:bg-amber-400 transition-colors">
+        <button 
+          onClick={handleSaveAsText} 
+          className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold border border-white/30 text-white hover:bg-white/10 transition-colors"
+        >
+          <Download size={16} /> {t.saveAsText}
+        </button>
+        <button 
+          onClick={handleFacebookShare} 
+          className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-[#1877f2] text-white hover:bg-[#0d65d9] transition-colors"
+        >
+          <Facebook size={16} /> {t.facebookShare}
+        </button>
+        <button 
+          onClick={onReset} 
+          className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-amber-500 text-black hover:bg-amber-400 transition-colors"
+        >
           <ArrowLeft size={16} /> {t.returnGame}
         </button>
       </div>

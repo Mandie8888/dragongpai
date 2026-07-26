@@ -107,6 +107,10 @@ const currencySymbol = (market: string): string => {
 };
 
 /* ── Generate Report from Live Data ──────────── */
+// src/pages/AIStocks.tsx - Complete fixed version
+// ... (previous imports and code remain the same)
+
+/* ── Generate Report from Live Data ──────────── */
 const generateReportFromLiveData = (
   ticker: string, 
   lang: LangKey, 
@@ -119,7 +123,7 @@ const generateReportFromLiveData = (
   const changeUp = change >= 0;
 
   // ============================================================
-  // USE REAL RSI FROM THE API (calculated from Yahoo Finance data)
+  // USE REAL RSI FROM THE API
   // ============================================================
   let rsi = 50;
   let rsiStatus = "Neutral";
@@ -134,13 +138,12 @@ const generateReportFromLiveData = (
     console.log(`⚠️ Using estimated RSI(14): ${rsi}`);
   }
 
-  // Determine RSI status
   if (rsi > 70) rsiStatus = lang === "en" ? "Overbought" : lang === "tc" ? "超買" : "超买";
   else if (rsi < 30) rsiStatus = lang === "en" ? "Oversold" : lang === "tc" ? "超賣" : "超卖";
   else rsiStatus = lang === "en" ? "Neutral" : lang === "tc" ? "中性" : "中性";
 
   // ============================================================
-  // USE REAL MACD FROM THE API
+  // USE REAL MACD FROM THE API - FIXED NORMALIZATION
   // ============================================================
   let macdLine = 0;
   let signalLine = 0;
@@ -151,15 +154,18 @@ const generateReportFromLiveData = (
       liveData.macdSignal !== null && liveData.macdSignal !== undefined &&
       liveData.macdHistogram !== null && liveData.macdHistogram !== undefined) {
     
-    macdLine = Math.round(liveData.macd * 100) / 100;
-    signalLine = Math.round(liveData.macdSignal * 100) / 100;
-    histogram = Math.round(liveData.macdHistogram * 100) / 100;
+    // Normalize MACD by dividing by price/100 to get percentage-based values
+    const normalizationFactor = price > 0 ? price / 100 : 100;
+    
+    macdLine = Math.round((liveData.macd / normalizationFactor) * 100) / 100;
+    signalLine = Math.round((liveData.macdSignal / normalizationFactor) * 100) / 100;
+    histogram = Math.round((liveData.macdHistogram / normalizationFactor) * 100) / 100;
     
     console.log(`✅ Using real MACD from API: ${macdLine}, Signal: ${signalLine}, Histogram: ${histogram}`);
     
-    if (histogram > 0.5) {
+    if (histogram > 0.3) {
       macdStatus = lang === "en" ? "Bullish" : lang === "tc" ? "看漲" : "看涨";
-    } else if (histogram < -0.5) {
+    } else if (histogram < -0.3) {
       macdStatus = lang === "en" ? "Bearish" : lang === "tc" ? "看淡" : "看淡";
     } else {
       macdStatus = lang === "en" ? "Neutral" : lang === "tc" ? "中性" : "中性";
@@ -184,6 +190,37 @@ const generateReportFromLiveData = (
     }
     console.log(`⚠️ Using estimated MACD`);
   }
+
+  // ============================================================
+  // FORMAT PE RATIO - FIXED
+  // ============================================================
+  let peStr = "N/A";
+  if (liveData.pe !== null && liveData.pe !== undefined && !isNaN(liveData.pe) && liveData.pe > 0) {
+    peStr = `${liveData.pe.toFixed(1)}x`;
+    console.log(`✅ Using real PE from API: ${peStr}`);
+  } else {
+    console.log(`⚠️ PE not available from API, value: ${liveData.pe}`);
+  }
+
+  // ============================================================
+  // FORMAT ROE - FIXED
+  // ============================================================
+  let roeStr = "N/A";
+  if (liveData.roe !== null && liveData.roe !== undefined && !isNaN(liveData.roe)) {
+    roeStr = `${(liveData.roe * 100).toFixed(1)}%`;
+    console.log(`✅ Using real ROE from API: ${roeStr}`);
+  }
+
+  // ============================================================
+  // FORMAT MARKET CAP - FIXED
+  // ============================================================
+  let marketCapStr = liveData.marketCap || "N/A";
+
+  // ============================================================
+  // REST OF THE REPORT DATA
+  // ============================================================
+  
+  // ... (rest of your existing code remains the same)
 
   // Determine volatility
   let volatility = "Moderate";
@@ -233,21 +270,6 @@ const generateReportFromLiveData = (
     : lang === "tc"
       ? `技術動能：RSI(14) 處於 ${rsi.toFixed(1)}，${rsiStatus}水平。估值背景：市場兩邊風險均衡。行動信號：${recommendation}。`
       : `技术动能：RSI(14) 处于 ${rsi.toFixed(1)}，${rsiStatus}水平。估值背景：市场两边风险均衡。行动信号：${recommendation}。`;
-
-  // Format market cap
-  let marketCapStr = liveData.marketCap || "N/A";
-
-  // Format PE ratio
-  let peStr = "N/A";
-  if (liveData.pe !== null && liveData.pe !== undefined && !isNaN(liveData.pe)) {
-    peStr = `${liveData.pe.toFixed(1)}x`;
-  }
-
-  // Format ROE
-  let roeStr = "N/A";
-  if (liveData.roe !== null && liveData.roe !== undefined && !isNaN(liveData.roe)) {
-    roeStr = `${(liveData.roe * 100).toFixed(1)}%`;
-  }
 
   // Format dividend yield
   let divStr = "N/A";
@@ -815,11 +837,13 @@ const AIStocks = () => {
             </div>
 
             <StockReport
-              report={report}
-              lang={lang}
-              inWatchlist={inWatchlist}
-              onAddWatchlist={handleAddWatchlist}
-            />
+  report={report}
+  lang={lang}
+  inWatchlist={inWatchlist}
+  onAddWatchlist={handleAddWatchlist}
+  onSpeakAnalysis={speakAnalysis}
+  isSpeaking={isSpeaking}
+/>
             <ReportActionBar lang={lang} ticker={report.ticker} market={activeMarket} onReset={handleReset} inWatchlist={inWatchlist} onAddWatchlist={handleAddWatchlist} />
           </section>
         )}

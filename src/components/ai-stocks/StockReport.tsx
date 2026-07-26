@@ -110,6 +110,7 @@ const t = {
     share: "Share",
     textToVoice: "Text-to-Voice",
     textToVoiceDesc: "Click the 🔊 Read Analysis button above to listen to this report. The AI will read the full analysis including price, RSI, MACD, and recommendations in your selected language.",
+    textToVoiceSpeaking: "🔊 AI is now reading the report aloud...",
   },
   tc: {
     reportTitle: "AI 股票概率報告",
@@ -202,6 +203,7 @@ const t = {
     share: "分享",
     textToVoice: "文字轉語音",
     textToVoiceDesc: "點擊上方的 🔊 朗讀分析 按鈕收聽此報告。AI 將以您選擇的語言朗讀完整分析，包括價格、RSI、MACD 和建議。",
+    textToVoiceSpeaking: "🔊 AI 正在朗讀報告...",
   },
   sc: {
     reportTitle: "AI 股票概率报告",
@@ -294,6 +296,7 @@ const t = {
     share: "分享",
     textToVoice: "文字转语音",
     textToVoiceDesc: "点击上方的 🔊 朗读分析 按钮收听此报告。AI 将以您选择的语言朗读完整分析，包括价格、RSI、MACD 和建议。",
+    textToVoiceSpeaking: "🔊 AI 正在朗读报告...",
   },
 };
 
@@ -382,9 +385,11 @@ interface Props {
   lang: LangKey;
   inWatchlist: boolean;
   onAddWatchlist: () => void;
+  onSpeakAnalysis?: () => void;
+  isSpeaking?: boolean;
 }
 
-const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
+const StockReport = ({ report, lang, inWatchlist, onAddWatchlist, onSpeakAnalysis, isSpeaking = false }: Props) => {
   const l = t[lang];
   const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
@@ -992,8 +997,185 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
             </div>
           </Section>
 
-          {/* Financial Snapshot - Keep existing implementation */}
-          {/* ... (the financial snapshot section remains the same as your original) ... */}
+          {/* Financial Snapshot */}
+          <Section className="report-section">
+            <SectionTitle>{l.financialSnapshot}</SectionTitle>
+            <div className="space-y-3">
+              {/* Health Score */}
+              {(() => {
+                const score = report.financialHealthScore || 50;
+                const tier = score >= 80 ? "excellent" : score >= 60 ? "good" : score >= 40 ? "fair" : "weak";
+                const tierLabel = tier === "excellent" ? l.healthExcellent : tier === "good" ? l.healthGood : tier === "fair" ? l.healthFair : l.healthWeak;
+                const tierColor = tier === "excellent" ? "#15803d" : tier === "good" ? "#2563eb" : tier === "fair" ? "#f59e0b" : "#dc2626";
+                const tierAdvice = tier === "excellent" ? l.healthAdviceExcellent : tier === "good" ? l.healthAdviceGood : tier === "fair" ? l.healthAdviceFair : l.healthAdviceWeak;
+
+                const peNum = parseFloat((report.peRatio || '20x').replace(/[^0-9.]/g, ""));
+                const roeNum = parseFloat((report.roe || '10%').replace(/[^0-9.]/g, ""));
+                const de = report.debtToEquity || 0.5;
+                const cf = report.cashFlowTrend || 'stable';
+                const peS = isNaN(peNum) ? 12 : peNum < 15 ? 22 : peNum < 25 ? 18 : peNum < 40 ? 12 : 6;
+                const roeS = isNaN(roeNum) ? 12 : roeNum > 20 ? 23 : roeNum > 12 ? 18 : roeNum > 5 ? 12 : 5;
+                const debtS = de < 0.3 ? 24 : de < 0.8 ? 20 : de < 1.5 ? 12 : 4;
+                const cfS = cf === "up" ? 23 : cf === "stable" ? 16 : 6;
+                const cfLabel = cf === "up" ? l.cashFlowUp : cf === "stable" ? l.cashFlowStable : l.cashFlowDown;
+
+                const cx = 55, cy = 55, r = 45;
+                const circumference = 2 * Math.PI * r;
+                const arcLen = (score / 100) * circumference;
+
+                return (
+                  <div className="p-3 rounded" style={{ border: `1px solid ${tierColor}22`, background: `${tierColor}08` }}>
+                    <div className="flex items-start gap-3">
+                      <div className="flex flex-col items-center shrink-0">
+                        <svg width={90} height={90} viewBox="0 0 110 110">
+                          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e2e8f0" strokeWidth={8} />
+                          <circle cx={cx} cy={cy} r={r} fill="none" stroke={`url(#healthGrad-${score})`} strokeWidth={8}
+                            strokeDasharray={`${arcLen} ${circumference}`}
+                            strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`}
+                          />
+                          <defs>
+                            <linearGradient id={`healthGrad-${score}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                              <stop offset="0%" stopColor="#dc2626" />
+                              <stop offset="35%" stopColor="#f59e0b" />
+                              <stop offset="70%" stopColor="#2563eb" />
+                              <stop offset="100%" stopColor="#15803d" />
+                            </linearGradient>
+                          </defs>
+                          <text x={cx} y={cy - 6} textAnchor="middle" style={{ fontSize: "20px", fontWeight: 800, fill: tierColor }}>
+                            {score}
+                          </text>
+                          <text x={cx} y={cy + 8} textAnchor="middle" style={{ fontSize: "9px", fontWeight: 600, fill: tierColor }}>
+                            /100
+                          </text>
+                        </svg>
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: tierColor, color: "#fff" }}>
+                          {tierLabel}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] leading-relaxed mb-2" style={{ color: "#334155" }}>{tierAdvice}</p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {[
+                            { label: l.peRatio, score: peS, max: 25, value: formatValue(report.peRatio) },
+                            { label: l.roeLabel, score: roeS, max: 25, value: formatValue(report.roe) },
+                            { label: l.debtLabel, score: debtS, max: 25, value: `${de.toFixed(2)}x` },
+                            { label: l.cashFlowLabel, score: cfS, max: 25, value: cfLabel },
+                          ].map((sub) => (
+                            <div key={sub.label} className="p-1.5 rounded" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.06)" }}>
+                              <div className="flex items-center justify-between mb-0.5">
+                                <span className="text-[8px] uppercase tracking-[0.08em] font-semibold" style={{ color: "#64748b" }}>{sub.label}</span>
+                                <span className="text-[9px] font-bold" style={{ color: "#1e293b" }}>{sub.value}</span>
+                              </div>
+                              <div className="w-full h-[4px] rounded-full overflow-hidden" style={{ background: "#e2e8f0" }}>
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{
+                                    width: `${(sub.score / sub.max) * 100}%`,
+                                    background: sub.score >= 20 ? "#15803d" : sub.score >= 12 ? "#2563eb" : sub.score >= 8 ? "#f59e0b" : "#dc2626",
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Financial metric details */}
+              {(() => {
+                const peNum = parseFloat((report.peRatio || '20x').replace(/[^0-9.]/g, ""));
+                const roeNum = parseFloat((report.roe || '10%').replace(/[^0-9.]/g, ""));
+                const divNum = parseFloat((report.dividendYield || '0%').replace(/[^0-9.]/g, ""));
+                const sector = report.sector || 'N/A';
+                const isTech = sector === "Technology" || sector === "Communication Services";
+                const isFinancial = sector === "Financials";
+                const price = parseFloat((report.price || '0').replace(/[^0-9.]/g, ""));
+                const currency = (report.price || '').replace(/[0-9.,]/g, "").trim() || currencySymbol || '$';
+                const isHK = currency.includes("HK");
+                const investAmount = isHK ? 100000 : 10000;
+                const investLabel = isHK ? (lang === "en" ? "HK$100,000" : "10萬港幣") : (lang === "en" ? "$10,000" : "$10,000");
+                const annualDiv = !isNaN(divNum) && divNum > 0 ? Math.round(investAmount * divNum / 100) : 0;
+
+                const metrics = [
+                  (() => {
+                    const isExpensive = !isNaN(peNum) && ((isTech ? peNum > 35 : isFinancial ? peNum > 15 : peNum > 25));
+                    const isCheap = !isNaN(peNum) && ((isTech ? peNum < 20 : isFinancial ? peNum < 8 : peNum < 15));
+                    const signal: "green" | "amber" | "red" = isCheap ? "green" : isExpensive ? "red" : "amber";
+                    const sectorBenchmark = isTech ? (lang === "en" ? "25-35x" : "25-35倍") : isFinancial ? (lang === "en" ? "8-15x" : "8-15倍") : (lang === "en" ? "15-25x" : "15-25倍");
+                    const explanation = {
+                      en: !isNaN(peNum) ? (isExpensive ? `P/E ${formatValue(report.peRatio)} — premium vs ${sector} avg ${sectorBenchmark}.` : isCheap ? `P/E ${formatValue(report.peRatio)} — below ${sector} avg ${sectorBenchmark}, potentially undervalued.` : `P/E ${formatValue(report.peRatio)} — normal for ${sector} (${sectorBenchmark}).`) : `P/E data not available.`,
+                      tc: !isNaN(peNum) ? (isExpensive ? `市盈率 ${formatValue(report.peRatio)}——高於 ${sector} 平均 ${sectorBenchmark}。` : isCheap ? `市盈率 ${formatValue(report.peRatio)}——低於 ${sector} 平均 ${sectorBenchmark}，可能被低估。` : `市盈率 ${formatValue(report.peRatio)}——處於 ${sector} 正常範圍（${sectorBenchmark}）。`) : `市盈率數據不可用。`,
+                      sc: !isNaN(peNum) ? (isExpensive ? `市盈率 ${formatValue(report.peRatio)}——高于 ${sector} 平均 ${sectorBenchmark}。` : isCheap ? `市盈率 ${formatValue(report.peRatio)}——低于 ${sector} 平均 ${sectorBenchmark}，可能被低估。` : `市盈率 ${formatValue(report.peRatio)}——处于 ${sector} 正常范围（${sectorBenchmark}）。`) : `市盈率数据不可用。`,
+                    };
+                    return { label: l.peRatio, value: formatValue(report.peRatio), signal, explanation: explanation[lang] };
+                  })(),
+                  (() => {
+                    const isStrong = !isNaN(roeNum) && roeNum > 15;
+                    const isWeak = !isNaN(roeNum) && roeNum < 8;
+                    const signal: "green" | "amber" | "red" = isStrong ? "green" : isWeak ? "red" : "amber";
+                    const explanation = {
+                      en: !isNaN(roeNum) ? (isStrong ? `ROE ${formatValue(report.roe)} — high capital efficiency, strong earnings.` : isWeak ? `ROE ${formatValue(report.roe)} — weak capital efficiency.` : `ROE ${formatValue(report.roe)} — moderate efficiency.`) : `ROE data not available.`,
+                      tc: !isNaN(roeNum) ? (isStrong ? `ROE ${formatValue(report.roe)}——資本效率高，盈利能力強。` : isWeak ? `ROE ${formatValue(report.roe)}——資本效率偏弱。` : `ROE ${formatValue(report.roe)}——資本效率中等。`) : `ROE 數據不可用。`,
+                      sc: !isNaN(roeNum) ? (isStrong ? `ROE ${formatValue(report.roe)}——资本效率高，盈利能力强。` : isWeak ? `ROE ${formatValue(report.roe)}——资本效率偏弱。` : `ROE ${formatValue(report.roe)}——资本效率中等。`) : `ROE 数据不可用。`,
+                    };
+                    return { label: l.roeLabel, value: formatValue(report.roe), signal, explanation: explanation[lang] };
+                  })(),
+                  (() => {
+                    const isHigh = !isNaN(divNum) && divNum > 4;
+                    const isZero = !isNaN(divNum) && divNum < 0.1;
+                    const signal: "green" | "amber" | "red" = isHigh ? "green" : isZero ? "red" : "amber";
+                    const divCalc = !isNaN(divNum) && divNum > 0 ? 
+                      (lang === "en" ? `Invest ${investLabel} → ~${currency}${annualDiv.toLocaleString()}/yr.` : 
+                       lang === "tc" ? `投資 ${investLabel} → 年約 ${currency}${annualDiv.toLocaleString()}。` : 
+                       `投资 ${investLabel} → 年约 ${currency}${annualDiv.toLocaleString()}。`) : '';
+                    const explanation = {
+                      en: !isNaN(divNum) ? (isHigh ? `Yield ${formatValue(report.dividendYield)} — strong income. ${divCalc}` : isZero ? `No dividend — growth reinvestment.` : `Yield ${formatValue(report.dividendYield)} — modest income. ${divCalc}`) : `Dividend data not available.`,
+                      tc: !isNaN(divNum) ? (isHigh ? `收益率 ${formatValue(report.dividendYield)}——可觀收入。${divCalc}` : isZero ? `不派息——利潤再投資於增長。` : `收益率 ${formatValue(report.dividendYield)}——適度收入。${divCalc}`) : `股息數據不可用。`,
+                      sc: !isNaN(divNum) ? (isHigh ? `收益率 ${formatValue(report.dividendYield)}——可观收入。${divCalc}` : isZero ? `不派息——利润再投资于增长。` : `收益率 ${formatValue(report.dividendYield)}——适度收入。${divCalc}`) : `股息数据不可用。`,
+                    };
+                    return { label: l.dividendYield, value: formatValue(report.dividendYield), signal, explanation: explanation[lang] };
+                  })(),
+                  (() => {
+                    const vol = (report.volatility || 'moderate').toLowerCase();
+                    const isHigh = vol.includes("high") || vol.includes("高");
+                    const isLow = vol.includes("low") || vol.includes("低");
+                    const signal: "green" | "amber" | "red" = isLow ? "green" : isHigh ? "red" : "amber";
+                    const explanation = {
+                      en: isHigh ? `High volatility — expect sharp price swings.` : isLow ? `Low volatility — stable, predictable.` : `Moderate volatility — typical for active stocks.`,
+                      tc: isHigh ? `高波動——預計價格劇烈波動。` : isLow ? `低波動——穩定可預測。` : `中等波動——活躍交易股票的典型特徵。`,
+                      sc: isHigh ? `高波动——预计价格剧烈波动。` : isLow ? `低波动——稳定可预测。` : `中等波动——活跃交易股票的典型特征。`,
+                    };
+                    return { label: l.volatilityIndex, value: report.volatility || 'Moderate', signal, explanation: explanation[lang] };
+                  })(),
+                ];
+
+                const signalColors = { green: { bg: "#f0fdf4", border: "#86efac", dot: "#15803d" }, amber: { bg: "#fffbeb", border: "#fcd34d", dot: "#b45309" }, red: { bg: "#fef2f2", border: "#fca5a5", dot: "#dc2626" } };
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 print-2col">
+                    {metrics.map((m, i) => {
+                      const sc = signalColors[m.signal];
+                      return (
+                        <div key={i} className="p-2 rounded" style={{ border: `1px solid ${sc.border}`, background: sc.bg }}>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full" style={{ background: sc.dot }} />
+                              <span className="text-[9px] uppercase tracking-[0.1em] font-bold" style={{ color: "#64748b" }}>{m.label}</span>
+                            </div>
+                            <span className="text-[13px] font-bold" style={{ color: "#1e293b" }}>{m.value}</span>
+                          </div>
+                          <p className="text-[9px] leading-relaxed" style={{ color: "#334155" }}>{m.explanation}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          </Section>
 
           {/* Strategic Advice */}
           <Section className="report-section">
@@ -1123,15 +1305,52 @@ const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
         </div>
 
         {/* ── Text-to-Voice Section (hidden when printing) ── */}
-        <div className="text-to-voice-section px-5 py-3 mt-2 no-print">
-          <div className="p-4 rounded-lg border border-gold/20 bg-gold/5">
-            <div className="flex items-center gap-2 mb-2">
-              <Volume2 className="h-5 w-5 text-gold" />
-              <h3 className="text-sm font-bold text-gold">🔊 {l.textToVoice}</h3>
+        <div className="text-to-voice-section px-5 py-3 mt-4 no-print">
+          <div className="p-4 rounded-lg border border-gold/20 bg-gradient-to-r from-gold/10 to-amber-50/50">
+            <div className="flex items-center gap-3 mb-2">
+              <div className={`p-2 rounded-full ${isSpeaking ? 'bg-gold/30 animate-pulse' : 'bg-gold/10'}`}>
+                <Volume2 className={`h-5 w-5 ${isSpeaking ? 'text-gold' : 'text-muted-foreground'}`} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gold">🔊 {l.textToVoice}</h3>
+                {isSpeaking && (
+                  <span className="text-xs text-gold animate-pulse font-medium">
+                    {l.textToVoiceSpeaking}
+                  </span>
+                )}
+              </div>
+              {!isSpeaking && onSpeakAnalysis && (
+                <button
+                  onClick={onSpeakAnalysis}
+                  className="ml-auto px-3 py-1 text-xs font-medium rounded-full bg-gold text-white hover:bg-gold/80 transition-colors"
+                >
+                  ▶ {lang === 'en' ? 'Read Now' : lang === 'tc' ? '立即朗讀' : '立即朗读'}
+                </button>
+              )}
+              {isSpeaking && onSpeakAnalysis && (
+                <button
+                  onClick={onSpeakAnalysis}
+                  className="ml-auto px-3 py-1 text-xs font-medium rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
+                >
+                  ⏹ {lang === 'en' ? 'Stop' : lang === 'tc' ? '停止' : '停止'}
+                </button>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground leading-relaxed">
               {l.textToVoiceDesc}
             </p>
+            {isSpeaking && (
+              <div className="mt-2 flex items-center gap-2">
+                <div className="flex gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-gold animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-gold animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-gold animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                </div>
+                <span className="text-xs text-gold font-medium">
+                  {lang === 'en' ? '🔊 Speaking...' : lang === 'tc' ? '🔊 朗讀中...' : '🔊 朗读中...'}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
