@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
 import dragonLogo from "@/assets/dragon-logo.png";
-import { Globe, Menu, LogOut, Coins, ChevronDown, LayoutDashboard, Star, Settings, X } from "lucide-react";
+import { Globe, Menu, LogOut, Coins, ChevronDown, LayoutDashboard, Star, Settings, X, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCredits } from "@/hooks/useCredits";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -207,12 +207,13 @@ const Header = () => {
         </div>
       </div>
 
-      {/* Mobile Menu Overlay - FIXED with clearly visible Logout */}
+      {/* Mobile Menu Overlay - Logout at TOP for easy access */}
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 top-[72px] z-50 bg-white/98 backdrop-blur-md animate-in slide-in-from-right">
           <div className="flex flex-col h-full overflow-y-auto">
             {/* Close Button */}
-            <div className="flex justify-end px-4 py-2">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100">
+              <span className="text-sm font-semibold text-gray-700">Menu</span>
               <button
                 onClick={() => setMobileOpen(false)}
                 className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
@@ -221,9 +222,39 @@ const Header = () => {
               </button>
             </div>
 
+            {/* User Info Bar - Always visible at top */}
+            {user && (
+              <div className="px-4 py-3 bg-blue-50/50 border-b border-blue-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
+                      {user.email?.charAt(0).toUpperCase() || "U"}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">
+                        {user.email?.split("@")[0] || "User"}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate max-w-[140px]">{user.email}</p>
+                    </div>
+                  </div>
+                  {/* LOGOUT BUTTON - RIGHT HERE AT THE TOP! */}
+                  <button
+                    onClick={() => { 
+                      signOut(); 
+                      setMobileOpen(false); 
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-500 text-white font-semibold text-sm hover:bg-red-600 transition-colors shadow-sm"
+                  >
+                    <LogOut size={16} />
+                    Logout
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Navigation Links */}
-            <nav className="flex-1 px-6 py-4 space-y-1">
-              <LanguageDropdown activeLang={lang} onChange={(l) => { setLang(l); }} className="mb-4 w-full" />
+            <nav className="flex-1 px-4 py-3 space-y-0.5 overflow-y-auto">
+              <LanguageDropdown activeLang={lang} onChange={(l) => { setLang(l); }} className="w-full mb-3" />
               
               {navHrefs.map((href, i) => {
                 const isActive = location.pathname === href || (href !== "/" && location.pathname.startsWith(href));
@@ -232,7 +263,7 @@ const Header = () => {
                     key={href} 
                     to={href} 
                     onClick={() => setMobileOpen(false)} 
-                    className={`flex items-center px-3 py-3 rounded-lg text-base transition-colors ${
+                    className={`flex items-center px-3 py-2.5 rounded-lg text-sm transition-colors ${
                       isActive 
                         ? "bg-blue-50 text-blue-700 font-bold" 
                         : "text-gray-600 hover:bg-gray-50 hover:text-blue-700"
@@ -244,22 +275,10 @@ const Header = () => {
               })}
             </nav>
 
-            {/* User Section with Logout - Always at bottom */}
+            {/* Bottom Section - User Links (Dashboard, Watchlist, Settings) */}
             {user && (
-              <div className="border-t border-gray-200 px-6 py-4 bg-gray-50/50">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
-                    {user.email?.charAt(0).toUpperCase() || "U"}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">
-                      {user.email?.split("@")[0] || "User"}
-                    </p>
-                    <p className="text-xs text-gray-500">{user.email}</p>
-                  </div>
-                </div>
-                
-                <div className="space-y-1">
+              <div className="border-t border-gray-200 px-4 py-3 bg-gray-50/50">
+                <div className="space-y-0.5">
                   <Link 
                     to="/dashboard" 
                     onClick={() => setMobileOpen(false)} 
@@ -282,25 +301,11 @@ const Header = () => {
                     <Settings size={16} /> Settings
                   </Link>
                 </div>
-
-                {/* LOGOUT BUTTON - CLEARLY VISIBLE */}
-                <div className="mt-3 pt-3 border-t border-gray-200">
-                  <button 
-                    onClick={() => { 
-                      signOut(); 
-                      setMobileOpen(false); 
-                    }} 
-                    className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 transition-colors font-semibold"
-                  >
-                    <LogOut size={18} />
-                    Logout
-                  </button>
-                </div>
               </div>
             )}
 
             {!user && (
-              <div className="border-t border-gray-200 px-6 py-6">
+              <div className="border-t border-gray-200 px-4 py-4">
                 <Link 
                   to="/auth" 
                   onClick={() => setMobileOpen(false)} 

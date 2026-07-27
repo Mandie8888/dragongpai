@@ -100,12 +100,13 @@ export default function Auth() {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
+      // When signing in, use the correct redirect
+const { data, error } = await supabase.auth.signInWithOAuth({
+  provider: 'google', // or email/password
+  options: {
+    redirectTo: window.location.origin + '/dashboard', // or where you want to redirect
+  },
+});
 
       if (error) {
         setError(error.message);

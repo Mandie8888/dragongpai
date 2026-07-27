@@ -3,10 +3,12 @@ import { Link } from "react-router-dom";
 import { useLanguage, type LangKey } from "@/contexts/LanguageContext";
 import type { CharacterModel, CharacterConfig } from "./mark6-data";
 import { getBallColor } from "./mark6-data";
-import { Printer, ArrowLeft, TrendingUp, MessageCircle, Shield, AlertTriangle, Settings2, Download, Facebook } from "lucide-react";
+import { Printer, ArrowLeft, TrendingUp, MessageCircle, Shield, AlertTriangle, Settings2, Download, Facebook, Copy, Check, Share2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer, Legend } from "recharts";
+import { toast } from "sonner";
 
+// ── IMPORT ALL IMAGES FIRST ──
 import dragonImg from "@/assets/dragon-master.png";
 import phoenixImg from "@/assets/phoenix-trend.png";
 import tigerImg from "@/assets/tiger-volatility.png";
@@ -16,6 +18,7 @@ import aladdinImg from "@/assets/aladdin-v2.png";
 import luckyStarImg from "@/assets/lucky-star-v2.png";
 import acheloisImg from "@/assets/achelois-v2.png";
 
+// ── DEFINE avatarMap AFTER ALL IMPORTS ──
 const avatarMap: Record<string, string> = {
   "dragon-master": dragonImg,
   "phoenix-trend": phoenixImg,
@@ -39,8 +42,11 @@ const labels = {
     warning: "⚠️ Gambling is harmful to health. This is purely an AI mathematical exercise. Please do not take it seriously or become addicted. We are not responsible for any consequences.",
     print: "Print Report",
     share: "Share",
+    shareWhatsApp: "WhatsApp",
+    shareFacebook: "Facebook",
+    copyReport: "Copy Report",
+    copied: "Copied!",
     saveAsText: "Save as Text",
-    facebookShare: "Facebook",
     returnGame: "Return to Game",
     goStocks: "Go to AI Stocks Probability",
     red: "Red (紅/红)",
@@ -65,6 +71,9 @@ const labels = {
     setLabel: "Set",
     saved: "Report saved as text file!",
     facebookShared: "Shared to Facebook!",
+    whatsappShared: "Shared to WhatsApp!",
+    copiedToClipboard: "Copied to clipboard!",
+    shareTitle: "Share Report",
   },
   tc: {
     prediction: " 的戰略預測",
@@ -77,8 +86,11 @@ const labels = {
     warning: "⚠️ 賭博有害健康。本網站純粹為 AI 數學練習。請勿認真對待或沉迷。我們不對任何後果負責。",
     print: "列印報告",
     share: "分享",
+    shareWhatsApp: "WhatsApp",
+    shareFacebook: "Facebook",
+    copyReport: "複製報告",
+    copied: "已複製！",
     saveAsText: "儲存為文字",
-    facebookShare: "Facebook",
     returnGame: "返回遊戲",
     goStocks: "前往 AI 股票概率",
     red: "紅",
@@ -103,6 +115,9 @@ const labels = {
     setLabel: "組",
     saved: "報告已儲存為文字檔案！",
     facebookShared: "已分享到 Facebook！",
+    whatsappShared: "已分享到 WhatsApp！",
+    copiedToClipboard: "已複製到剪貼板！",
+    shareTitle: "分享報告",
   },
   sc: {
     prediction: " 的战略预测",
@@ -115,8 +130,11 @@ const labels = {
     warning: "⚠️ 赌博有害健康。本网站纯粹为 AI 数学练习。请勿认真对待或沉迷。我们不对任何后果负责。",
     print: "打印报告",
     share: "分享",
+    shareWhatsApp: "WhatsApp",
+    shareFacebook: "Facebook",
+    copyReport: "复制报告",
+    copied: "已复制！",
     saveAsText: "保存为文本",
-    facebookShare: "Facebook",
     returnGame: "返回游戏",
     goStocks: "前往 AI 股票概率",
     red: "红",
@@ -141,6 +159,9 @@ const labels = {
     setLabel: "组",
     saved: "报告已保存为文本文件！",
     facebookShared: "已分享到 Facebook！",
+    whatsappShared: "已分享到 WhatsApp！",
+    copiedToClipboard: "已复制到剪贴板！",
+    shareTitle: "分享报告",
   },
 };
 
@@ -350,6 +371,7 @@ const langKeys: LangKey[] = ["en", "tc", "sc"];
 const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Props) => {
   const { lang, setLang } = useLanguage();
   const t = labels[lang];
+  const [isCopied, setIsCopied] = useState(false);
   
   // SAFETY CHECK: If character or config is undefined, show error state
   if (!character || !config) {
@@ -393,33 +415,99 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
     return () => clearTimeout(timer);
   }, []);
 
+  // ── Share Text Generation ──
+  const getShareText = () => {
+    const isChinese = lang === 'tc' || lang === 'sc';
+    const partnerName = character.name?.[lang] || character.name?.en || character.id;
+    const dateStr = new Date().toLocaleDateString(lang === 'en' ? 'en-US' : lang === 'tc' ? 'zh-HK' : 'zh-CN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    // Build the prediction list
+    const predictionsStr = predictions.map((set, idx) => {
+      return `${isChinese ? `第${idx + 1}組` : `Set ${idx + 1}`}: ${set.join(' · ')}`;
+    }).join('\n');
+    
+    // Get the top prediction (first set)
+    const topPrediction = predictions[0]?.join(' · ') || '';
+    
+    // Get method
+    const method = character.method?.[lang] || character.method?.en || '';
+    
+    // Build the full share text
+    const parts = [];
+    
+    // 1. Character name and prediction intro
+    parts.push(isChinese 
+      ? `🎰 ${partnerName} 預測下一期幸運號碼：`
+      : `🎰 ${partnerName} is predicting the lucky numbers for the next draw:`
+    );
+    parts.push('');
+    
+    // 2. Date
+    parts.push(`${isChinese ? '📅 報告日期' : '📅 Report Date'}: ${dateStr}`);
+    parts.push('');
+    
+    // 3. Top prediction (highlighted)
+    parts.push(isChinese ? '⭐ 精選號碼組合：' : '⭐ Top Prediction:');
+    parts.push(`[ ${topPrediction} ]`);
+    parts.push('');
+    
+    // 4. All predictions
+    parts.push(isChinese ? '📊 完整預測 (10組)：' : '📊 Full Predictions (10 sets):');
+    parts.push(predictionsStr);
+    parts.push('');
+    
+    // 5. Methodology
+    parts.push(`${isChinese ? '🔬 方法論' : '🔬 Methodology'}: ${method}`);
+    parts.push('');
+    
+    // 6. Powered by
+    parts.push(isChinese ? '⚡ 由 DragonGP.AI 提供 AI 預測' : '⚡ Powered by DragonGP.AI');
+    parts.push('🔗 https://dragongp.ai');
+    
+    return parts.join('\n');
+  };
+
+  // ── Share Handlers ──
+  const handleFacebookShare = () => {
+    const shareText = getShareText();
+    const encodedText = encodeURIComponent(shareText);
+    const url = `https://www.facebook.com/dialog/feed?display=popup&quote=${encodedText}&hashtag=%23DragonGPAI%23LuckyNumbers&app_id=your_facebook_app_id`;
+    
+    window.open(
+      url,
+      'facebook-share-dialog',
+      'width=626,height=436,toolbar=0,menubar=0,scrollbars=yes'
+    );
+    
+    toast.success(t.facebookShared || 'Shared to Facebook!');
+  };
+
+  const handleWhatsAppShare = () => {
+    const shareText = getShareText();
+    const encodedText = encodeURIComponent(shareText);
+    const url = `https://wa.me/?text=${encodedText}`;
+    window.open(url, '_blank');
+    
+    toast.success(t.whatsappShared || 'Shared to WhatsApp!');
+  };
+
+  const handleCopyText = () => {
+    const text = getShareText();
+    navigator.clipboard.writeText(text).then(() => {
+      setIsCopied(true);
+      toast.success(t.copiedToClipboard || 'Copied to clipboard!');
+      setTimeout(() => setIsCopied(false), 3000);
+    }).catch(() => {
+      toast.error('Failed to copy');
+    });
+  };
+
   const handlePrint = () => window.print();
   
-  const handleShare = () => {
-    const partnerLabel = character.name?.[lang] || character.name?.en || character.id;
-    const text = lang === "en"
-      ? `I just ran an AI Probability Analysis with ${partnerLabel} on DragonGPAi.com! 🐲🎯 Check it out: ${window.location.origin}/ai-games`
-      : lang === "tc"
-        ? `我剛在 DragonGPAi.com 上用 ${partnerLabel} 進行了 AI 概率分析！🐲🎯 查看：${window.location.origin}/ai-games`
-        : `我刚在 DragonGPAi.com 上用 ${partnerLabel} 进行了 AI 概率分析！🐲🎯 查看：${window.location.origin}/ai-games`;
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    window.open(url, "_blank");
-  };
-
-  const handleFacebookShare = () => {
-    const url = window.location.href;
-    const partnerLabel = character.name?.[lang] || character.name?.en || character.id;
-    const numbers = predictions.slice(0, 3).map(set => set.join(", ")).join(" | ");
-    const text = lang === "en"
-      ? `My AI Mark 6 predictions from ${partnerLabel}: ${numbers} 🐲🎯`
-      : lang === "tc"
-        ? `我的 AI Mark 6 預測號碼（來自 ${partnerLabel}）：${numbers} 🐲🎯`
-        : `我的 AI Mark 6 预测号码（来自 ${partnerLabel}）：${numbers} 🐲🎯`;
-    
-    const fbShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}`;
-    window.open(fbShareUrl, '_blank', 'width=600,height=400');
-  };
-
   const handleSaveAsText = () => {
     const el = document.getElementById("mark6-full-report");
     if (!el) return;
@@ -489,6 +577,10 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
     URL.revokeObjectURL(a.href);
   };
 
+  const handleReturn = () => {
+    onReset();
+  };
+
   const stars = 3;
   
   // Safe access for character properties with fallbacks
@@ -497,6 +589,9 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
   const charMethod = character.method?.[lang] || character.method?.en || '';
   const charBio = character.bio?.[lang] || character.bio?.en || '';
   const charAvatar = character.avatar || '';
+
+  // Get avatar URL - safely access avatarMap
+  const avatarUrl = avatarMap[charAvatar] || avatarMap["dragon-master"] || dragonImg;
 
   return (
     <div className="max-w-3xl w-full mx-auto px-4 py-6 space-y-5 animate-fade-in print-report" id="mark6-full-report">
@@ -541,7 +636,7 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary/40 shadow-lg shrink-0">
             <img 
-              src={avatarMap[charAvatar] || avatarMap["dragon-master"]} 
+              src={avatarUrl} 
               alt={charName} 
               className="w-full h-full object-cover" 
             />
@@ -730,34 +825,56 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
         </p>
       </div>
 
-      {/* Action Bar - UPDATED with Save as Text and Facebook buttons */}
+      {/* ── ACTION BAR ── */}
       <div className="flex flex-wrap items-center justify-center gap-2 pt-2 print-hide">
+        {/* Print Button */}
         <button 
           onClick={handlePrint} 
           className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
         >
           <Printer size={16} /> {t.print}
         </button>
+        
+        {/* Copy Report Button */}
         <button 
-          onClick={handleShare} 
+          onClick={handleCopyText} 
+          className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+            isCopied 
+              ? 'bg-green-600 text-white' 
+              : 'border border-white/30 text-white hover:bg-white/10'
+          }`}
+        >
+          {isCopied ? <Check size={16} /> : <Copy size={16} />}
+          {isCopied ? t.copied : t.copyReport}
+        </button>
+        
+        {/* WhatsApp Share Button */}
+        <button 
+          onClick={handleWhatsAppShare} 
           className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-[#25D366] text-white hover:bg-[#1da851] transition-colors"
         >
-          <MessageCircle size={16} /> {t.share}
+          <MessageCircle size={16} /> {t.shareWhatsApp}
         </button>
+        
+        {/* Facebook Share Button */}
+        <button 
+          onClick={handleFacebookShare} 
+          className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-[#1877f2] text-white hover:bg-[#0d65d9] transition-colors"
+        >
+          <Facebook size={16} /> {t.shareFacebook}
+        </button>
+        
+        {/* Save as Text Button */}
         <button 
           onClick={handleSaveAsText} 
           className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold border border-white/30 text-white hover:bg-white/10 transition-colors"
         >
           <Download size={16} /> {t.saveAsText}
         </button>
+        
+        {/* Return to Game Button */}
         <button 
-          onClick={handleFacebookShare} 
-          className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-[#1877f2] text-white hover:bg-[#0d65d9] transition-colors"
-        >
-          <Facebook size={16} /> {t.facebookShare}
-        </button>
-        <button 
-          onClick={onReset} 
+          onClick={handleReturn} 
           className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-amber-500 text-black hover:bg-amber-400 transition-colors"
         >
           <ArrowLeft size={16} /> {t.returnGame}
