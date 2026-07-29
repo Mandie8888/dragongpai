@@ -720,6 +720,8 @@ useEffect(() => {
 
 // ── Share Handlers ──
 // ── Share Handlers ──
+// ── Share Handlers ──
+// ── Share Handlers ──
 const handleFacebookShare = () => {
   const voiceContent = voiceText || generateVoiceText();
   const isChinese = lang === 'zh-TW' || lang === 'zh-CN';
@@ -732,12 +734,10 @@ const handleFacebookShare = () => {
   const rsi = report.rsi !== undefined ? report.rsi.toFixed(1) : 'N/A';
   const rsiStatus = report.rsiStatus || 'Neutral';
   
-  // Create share text with voice content
   const shareText = isChinese 
     ? `📊 今日關注：${companyName} (${ticker})\n💰 股價 ${price} (${change})\n📈 RSI(14) ${rsi} (${rsiStatus})\n🎯 AI預測概率 ${probability}%\n💡 AI建議 ${recommendation}\n\n📝 完整分析：\n${voiceContent}\n\n⚡ 由 DragonGP.AI 提供 AI 分析\n🔗 https://dragongp.ai`
     : `📊 Stock Watch: ${companyName} (${ticker})\n💰 Price ${price} (${change})\n📈 RSI(14) ${rsi} (${rsiStatus})\n🎯 AI Probability ${probability}%\n💡 AI Recommendation ${recommendation}\n\n📝 Full Analysis:\n${voiceContent}\n\n⚡ Powered by DragonGP.AI\n🔗 https://dragongp.ai`;
 
-  // Check if Web Share API is available (mobile)
   if (navigator.share) {
     navigator.share({
       title: `${companyName} - AI Stock Analysis`,
@@ -748,25 +748,19 @@ const handleFacebookShare = () => {
     }).catch((error) => {
       if (error.name !== 'AbortError') {
         console.error('Share error:', error);
-        // Fallback to Facebook sharer
         fallbackFacebookShare(shareText);
       }
     });
   } else {
-    // Desktop fallback - open Facebook sharer
     fallbackFacebookShare(shareText);
   }
 };
 
-// Helper function for Facebook fallback sharing
 const fallbackFacebookShare = (shareText: string) => {
   const encodedText = encodeURIComponent(shareText);
   const encodedUrl = encodeURIComponent(window.location.href);
-  
-  // Use Facebook sharer.php - this works on desktop
   const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`;
   
-  // Open in a popup window
   const width = 626;
   const height = 436;
   const left = (window.innerWidth - width) / 2;
@@ -779,7 +773,6 @@ const fallbackFacebookShare = (shareText: string) => {
   );
   
   if (!popup) {
-    // If popup is blocked, open in new tab
     window.open(shareUrl, '_blank');
   }
 };
@@ -800,7 +793,6 @@ const handleWhatsAppShare = () => {
     ? `📊 今日關注：${companyName} (${ticker})\n💰 股價 ${price} (${change})\n📈 RSI(14) ${rsi} (${rsiStatus})\n🎯 AI預測概率 ${probability}%\n💡 AI建議 ${recommendation}\n\n📝 完整分析：\n${voiceContent}\n\n⚡ 由 DragonGP.AI 提供 AI 分析\n🔗 https://dragongp.ai`
     : `📊 Stock Watch: ${companyName} (${ticker})\n💰 Price ${price} (${change})\n📈 RSI(14) ${rsi} (${rsiStatus})\n🎯 AI Probability ${probability}%\n💡 AI Recommendation ${recommendation}\n\n📝 Full Analysis:\n${voiceContent}\n\n⚡ Powered by DragonGP.AI\n🔗 https://dragongp.ai`;
 
-  // Check if Web Share API is available (mobile)
   if (navigator.share) {
     navigator.share({
       title: `${companyName} - AI Stock Analysis`,
@@ -811,17 +803,14 @@ const handleWhatsAppShare = () => {
     }).catch((error) => {
       if (error.name !== 'AbortError') {
         console.error('Share error:', error);
-        // Fallback to WhatsApp URL
         fallbackWhatsAppShare(shareText);
       }
     });
   } else {
-    // Desktop fallback - open WhatsApp URL
     fallbackWhatsAppShare(shareText);
   }
 };
 
-// Helper function for WhatsApp fallback sharing
 const fallbackWhatsAppShare = (shareText: string) => {
   const encodedText = encodeURIComponent(shareText);
   const whatsappUrl = `https://wa.me/?text=${encodedText}`;
@@ -849,8 +838,8 @@ const handleLinkedInShare = () => {
   const companyName = report.companyName || report.ticker || 'N/A';
   
   const shareText = isChinese
-    ? `${companyName} (${report.ticker}) AI分析報告\n\n${voiceContent}\n\n由 DragonGP.AI 提供\nhttps://dragongpai.com`
-    : `${companyName} (${report.ticker}) AI Analysis Report\n\n${voiceContent}\n\nPowered by DragonGP.AI\nhttps://dragongpai.com`;
+    ? `${companyName} (${report.ticker}) AI分析報告\n\n${voiceContent}\n\n由 DragonGP.AI 提供\nhttps://dragongp.ai`
+    : `${companyName} (${report.ticker}) AI Analysis Report\n\n${voiceContent}\n\nPowered by DragonGP.AI\nhttps://dragongp.ai`;
   
   const encodedText = encodeURIComponent(shareText);
   const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?summary=${encodedText}`;
@@ -870,8 +859,8 @@ const handleCopyText = () => {
   const rsiStatus = report.rsiStatus || 'Neutral';
   
   const shareText = isChinese 
-    ? `📊 今日關注：${companyName} (${ticker})\n💰 股價 ${price} (${change})\n📈 RSI(14) ${rsi} (${rsiStatus})\n🎯 AI預測概率 ${probability}%\n💡 AI建議 ${recommendation}\n\n📝 完整分析：\n${voiceContent}\n\n⚡ 由 DragonGP.AI 提供 AI 分析\n🔗 https://dragongpai.COM`
-    : `📊 Stock Watch: ${companyName} (${ticker})\n💰 Price ${price} (${change})\n📈 RSI(14) ${rsi} (${rsiStatus})\n🎯 AI Probability ${probability}%\n💡 AI Recommendation ${recommendation}\n\n📝 Full Analysis:\n${voiceContent}\n\n⚡ Powered by DragonGP.AI\n🔗 https://dragongpai.COM`;
+    ? `📊 今日關注：${companyName} (${ticker})\n💰 股價 ${price} (${change})\n📈 RSI(14) ${rsi} (${rsiStatus})\n🎯 AI預測概率 ${probability}%\n💡 AI建議 ${recommendation}\n\n📝 完整分析：\n${voiceContent}\n\n⚡ 由 DragonGP.AI 提供 AI 分析\n🔗 https://dragongp.ai`
+    : `📊 Stock Watch: ${companyName} (${ticker})\n💰 Price ${price} (${change})\n📈 RSI(14) ${rsi} (${rsiStatus})\n🎯 AI Probability ${probability}%\n💡 AI Recommendation ${recommendation}\n\n📝 Full Analysis:\n${voiceContent}\n\n⚡ Powered by DragonGP.AI\n🔗 https://dragongp.ai`;
 
   navigator.clipboard.writeText(shareText).then(() => {
     setIsCopied(true);
