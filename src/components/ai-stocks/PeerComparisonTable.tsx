@@ -15,7 +15,7 @@ const labels = {
     sectorAvg: "Sector Average",
     legend: "Note: P/B ratio is based on the most recent quarterly filing. All data sourced from public market feeds and may be delayed.",
   },
-  tc: {
+  "zh-TW": {
     title: "同業比較分析",
     ticker: "代碼",
     company: "公司",
@@ -29,7 +29,7 @@ const labels = {
     sectorAvg: "板塊平均",
     legend: "備註：市淨率 (P/B) 基於最近一季度財報數據。所有資料來自公開市場數據，可能存在延遲。",
   },
-  sc: {
+  "zh-CN": {
     title: "同业比较分析",
     ticker: "代码",
     company: "公司",
@@ -161,7 +161,15 @@ const PeerComparisonTable = ({
   targetROE,
   targetDivYield,
 }: Props) => {
-  const l = labels[lang];
+  // Normalize language
+  const normalizedLang = ((): LangKey => {
+    if (lang === 'en' || lang === 'zh-TW' || lang === 'zh-CN') return lang;
+    if (lang === 'tc' || lang === 'tw' || lang === 'zh' || lang === 'zh_TW' || lang === 'zh_HK' || lang === 'zh-HK') return 'zh-TW';
+    if (lang === 'sc' || lang === 'cn' || lang === 'zh_CN') return 'zh-CN';
+    return 'en';
+  })();
+
+  const l = labels[normalizedLang] || labels.en;
   const upperTicker = targetTicker.toUpperCase();
 
   const targetRow: PeerRow = {

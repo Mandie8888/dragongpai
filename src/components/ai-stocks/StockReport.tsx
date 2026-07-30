@@ -36,18 +36,18 @@ import ProbabilityGauge from "./ProbabilityGauge";
 import PeerComparisonTable from "./PeerComparisonTable";
 import RecommendationSidebar from "./RecommendationSidebar";
 import AnalystConfidenceGauge from "./AnalystConfidenceGauge";
-import PriceVsIndexChart from "./PriceVsIndexChart";
 import MarketDepthSection from "./MarketDepthSection";
 import CompanyProfile from "./CompanyProfile";
 import NewsSection from "./NewsSection";
 import dragonLogo from "@/assets/dragon-logo.png";
-import founderIcon from "@/assets/founder-icon.png";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useSpeech } from "@/hooks/useSpeech";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import ReportActionBar from "@/components/ai-stocks/ReportActionBar";
 
 /* ── Trilingual labels ───────────────────────── */
 const translations = {
@@ -178,6 +178,15 @@ const translations = {
     buySignal: "RSI(14) at {value} indicates oversold conditions. This is typically considered a BUY signal, suggesting the stock may be undervalued and due for a rebound.",
     sellSignal: "RSI(14) at {value} indicates overbought conditions. This is typically considered a SELL signal, suggesting the stock may be overvalued and due for a pullback.",
     voiceTranscript: "📢 AI Voice Analysis Transcript",
+    downloading: "Downloading...",
+    voiceSummary: "Summary",
+    voiceTechnical: "Technical Analysis",
+    voiceFundamental: "Fundamental Analysis",
+    voiceSentiment: "News Sentiment",
+    voiceRisk: "Risk Analysis",
+    voiceBull: "Bull Case",
+    voiceBear: "Bear Case",
+    voiceFinal: "Final Recommendation",
   },
   "zh-TW": {
     reportTitle: "AI 股票概率報告",
@@ -306,6 +315,15 @@ const translations = {
     buySignal: "RSI(14) 為 {value}，處於超賣區間。這通常被視為買入信號，顯示該股可能被低估，有望反彈。",
     sellSignal: "RSI(14) 為 {value}，處於超買區間。這通常被視為賣出信號，顯示該股可能被高估，有望回調。",
     voiceTranscript: "📢 AI 語音分析轉錄",
+    downloading: "下載中...",
+    voiceSummary: "摘要",
+    voiceTechnical: "技術分析",
+    voiceFundamental: "基本面分析",
+    voiceSentiment: "新聞情緒",
+    voiceRisk: "風險分析",
+    voiceBull: "看好因素",
+    voiceBear: "看淡因素",
+    voiceFinal: "最終建議",
   },
   "zh-CN": {
     reportTitle: "AI 股票概率报告",
@@ -434,6 +452,15 @@ const translations = {
     buySignal: "RSI(14) 为 {value}，处于超卖区间。这通常被视为买入信号，显示该股可能被低估，有望反弹。",
     sellSignal: "RSI(14) 为 {value}，处于超买区间。这通常被视为卖出信号，显示该股可能被高估，有望回调。",
     voiceTranscript: "📢 AI 语音分析转录",
+    downloading: "下载中...",
+    voiceSummary: "摘要",
+    voiceTechnical: "技术分析",
+    voiceFundamental: "基本面分析",
+    voiceSentiment: "新闻情绪",
+    voiceRisk: "风险分析",
+    voiceBull: "看好因素",
+    voiceBear: "看淡因素",
+    voiceFinal: "最终建议",
   },
 };
 
@@ -495,6 +522,7 @@ export interface ReportData {
   upcomingDividend?: { amount: string; exDate: string } | null;
   confidenceScore?: number;
   trend?: string;
+  riskTierLabel?: string;
 }
 
 /* ── Section helpers ──────────────────────────── */
@@ -527,14 +555,21 @@ interface Props {
 }
 
 const StockReport = ({ report, lang, inWatchlist, onAddWatchlist }: Props) => {
-  const l = translations[lang] || translations.en;
+  // Normalize language - handle any possible language value
+  const normalizedLang = ((): LangKey => {
+    if (lang === 'en' || lang === 'zh-TW' || lang === 'zh-CN') return lang;
+    if (lang === 'tc' || lang === 'tw' || lang === 'zh' || lang === 'zh_TW' || lang === 'zh_HK' || lang === 'zh-HK') return 'zh-TW';
+    if (lang === 'sc' || lang === 'cn' || lang === 'zh_CN') return 'zh-CN';
+    return 'en';
+  })();
+
+  const l = translations[normalizedLang] || translations.en;
   const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const [isCopied, setIsCopied] = useState(false);
   const [isReading, setIsReading] = useState(false);
-  // Change this (around line 220):
-const [voiceText, setVoiceText] = useState(''); // ← Keep this as empty string
+  const [voiceText, setVoiceText] = useState('');
   const { speak, stop, isSpeaking: speechIsSpeaking, isSupported } = useSpeech({
-    lang: lang === 'zh-TW' ? 'zh-HK' : lang === 'zh-CN' ? 'zh-CN' : 'en-US',
+    lang: normalizedLang === 'zh-TW' ? 'zh-HK' : normalizedLang === 'zh-CN' ? 'zh-CN' : 'en-US',
     rate: 0.9,
   });
 
@@ -546,119 +581,204 @@ const [voiceText, setVoiceText] = useState(''); // ← Keep this as empty string
     ? report.valueAdvice
     : l.noValueAdvice;
 
-  const formatValue = (value: any, fallback: string = 'N/A') => {
-    if (value === undefined || value === null || value === '' || value === 'N/A') {
-      return fallback;
-    }
-    return value;
-  };
-
   const currencySymbol = report.currencySymbol || '$';
 
   // ── Generate Voice Text with 8 Sections ──
-  const generateVoiceText = (): string => {
-    const isChinese = lang === 'zh-TW' || lang === 'zh-CN';
-    const parts: string[] = [];
+const generateVoiceText = (): string => {
+  const isChinese = normalizedLang === 'zh-TW' || normalizedLang === 'zh-CN';
+  const isTraditional = normalizedLang === 'zh-TW';
+  const parts: string[] = [];
 
-    // 1. Summary
-    parts.push(isChinese
-      ? `【摘要】${report.companyName || report.ticker} 目前價格 ${report.price}，${report.priceUp ? '上漲' : '下跌'} ${report.priceChange}。AI 預測概率 ${report.probability}%，建議 ${report.recommendation}。`
-      : `[Summary] ${report.companyName || report.ticker} is currently trading at ${report.price}, ${report.priceUp ? 'up' : 'down'} ${report.priceChange}. AI probability is ${report.probability}% with a ${report.recommendation} recommendation.`
-    );
-
-    // 2. Technical Analysis
-    parts.push(isChinese
-      ? `【技術分析】RSI 指標為 ${report.rsi.toFixed(1)}，${report.rsiStatus}。MACD 顯示 ${report.macdStatus} 信號。`
-      : `[Technical Analysis] RSI is ${report.rsi.toFixed(1)}, indicating ${report.rsiStatus}. MACD shows a ${report.macdStatus} signal.`
-    );
-
-    // 3. Fundamental Analysis
-    parts.push(isChinese
-      ? `【基本面分析】市值 ${report.marketCap}，市盈率 ${report.peRatio}，股本回報率 ${report.roe}%。`
-      : `[Fundamental Analysis] Market cap is ${report.marketCap} with a P/E ratio of ${report.peRatio} and ROE of ${report.roe}%.`
-    );
-
-    // 4. News Sentiment
-    const sentimentText = report.sentimentScore > 60 ? (isChinese ? '正面' : 'positive') :
-                          report.sentimentScore > 40 ? (isChinese ? '中性' : 'neutral') :
-                          (isChinese ? '負面' : 'negative');
-    parts.push(isChinese
-      ? `【新聞情緒】整體情緒為 ${sentimentText}，信心指數 ${report.sentimentScore}%。`
-      : `[News Sentiment] Overall sentiment is ${sentimentText} with a confidence score of ${report.sentimentScore}%.`
-    );
-
-    // 5. Risk Analysis
-    // 5. Risk Analysis
-const riskLevel = report.volatility.includes('High') ? (isChinese ? '高' : 'High') :
-                  report.volatility.includes('Moderate') ? (isChinese ? '中等' : 'Moderate') :
-                  (isChinese ? '低' : 'Low');
-    parts.push(isChinese
-      ? `【風險分析】波動率 ${riskLevel}，風險等級 ${report.riskTierLabel || '中等'}。`
-      : `[Risk Analysis] Volatility is ${riskLevel} with a ${report.riskTierLabel || 'Moderate'} risk tier.`
-    );
-
-    // 6. Bull Case
-    const bullText = report.bullPoints?.slice(0, 2).join(isChinese ? '；' : '; ') || (isChinese ? '看好因素包括技術面改善和市場情緒向好' : 'Bullish factors include improving technicals and positive market sentiment.');
-    parts.push(isChinese
-      ? `【看好因素】${bullText}`
-      : `[Bull Case] ${bullText}`
-    );
-
-    // 7. Bear Case
-    const bearText = report.bearPoints?.slice(0, 2).join(isChinese ? '；' : '; ') || (isChinese ? '看淡因素包括宏觀不確定性和行業競爭加劇' : 'Bearish factors include macro uncertainty and increasing competition.');
-    parts.push(isChinese
-      ? `【看淡因素】${bearText}`
-      : `[Bear Case] ${bearText}`
-    );
-
-    // 8. Final Recommendation
-    parts.push(isChinese
-      ? `【最終建議】${report.recommendation}。目標價 ${report.buyTarget}，止蝕位 ${report.sellTarget}。${l.selfDecision}`
-      : `[Final Recommendation] ${report.recommendation}. Target price is ${report.buyTarget} with stop loss at ${report.sellTarget}. ${l.selfDecision}`
-    );
-
-    return parts.join('。 ');
+  const getChineseTextLocal = (traditional: string, simplified: string) => {
+    return isTraditional ? traditional : simplified;
   };
+
+  const getRsiStatusTranslation = (status: string): string => {
+    if (!isChinese) return status;
+    const chineseStatuses = ['超買', '超买', '超賣', '超卖', '中性'];
+    if (chineseStatuses.some(s => status === s || status.includes(s))) {
+      return status;
+    }
+    const statusMap: Record<string, string> = {
+      'Overbought': getChineseTextLocal('超買', '超买'),
+      'Oversold': getChineseTextLocal('超賣', '超卖'),
+      'Neutral': getChineseTextLocal('中性', '中性'),
+    };
+    return statusMap[status] || status;
+  };
+
+  const getMacdStatusTranslation = (status: string): string => {
+    if (!isChinese) return status;
+    const chineseStatuses = ['看好', '看淡', '中性'];
+    if (chineseStatuses.some(s => status === s || status.includes(s))) {
+      return status;
+    }
+    const statusMap: Record<string, string> = {
+      'Bullish': getChineseTextLocal('看好', '看好'),
+      'Bearish': getChineseTextLocal('看淡', '看淡'),
+      'Neutral': getChineseTextLocal('中性', '中性'),
+    };
+    return statusMap[status] || status;
+  };
+
+  const getRecommendationTranslation = (rec: string): string => {
+    if (!isChinese) return rec;
+    const chineseRecs = ['買入', '买入', '持有', '賣出', '卖出', '強烈買入', '强烈买入', '強烈賣出', '强烈卖出'];
+    if (chineseRecs.some(s => rec === s || rec.includes(s))) {
+      return rec;
+    }
+    const recMap: Record<string, string> = {
+      'Buy': getChineseTextLocal('買入', '买入'),
+      'Hold': getChineseTextLocal('持有', '持有'),
+      'Sell': getChineseTextLocal('賣出', '卖出'),
+      'Strong Buy': getChineseTextLocal('強烈買入', '强烈买入'),
+      'Strong Sell': getChineseTextLocal('強烈賣出', '强烈卖出'),
+    };
+    return recMap[rec] || rec;
+  };
+
+  const getSentimentTranslation = (sentiment: string): string => {
+    if (!isChinese) return sentiment;
+    const sentimentMap: Record<string, string> = {
+      'positive': getChineseTextLocal('正面', '正面'),
+      'neutral': getChineseTextLocal('中性', '中性'),
+      'negative': getChineseTextLocal('負面', '负面'),
+    };
+    return sentimentMap[sentiment] || sentiment;
+  };
+
+  const rsiStatusTranslated = getRsiStatusTranslation(report.rsiStatus);
+  const macdStatusTranslated = getMacdStatusTranslation(report.macdStatus);
+  const recommendationTranslated = getRecommendationTranslation(report.recommendation);
+  
+  const sentimentText = report.sentimentScore > 60 
+    ? getSentimentTranslation('positive')
+    : report.sentimentScore > 40 
+      ? getSentimentTranslation('neutral')
+      : getSentimentTranslation('negative');
+
+  const riskLevel = report.volatility.includes('High') 
+    ? (isChinese ? getChineseTextLocal('高', '高') : 'High')
+    : report.volatility.includes('Moderate') 
+      ? (isChinese ? getChineseTextLocal('中等', '中等') : 'Moderate')
+      : (isChinese ? getChineseTextLocal('低', '低') : 'Low');
+  
+  const riskTier = isChinese 
+    ? getChineseTextLocal(report.riskTierLabel || '中等', report.riskTierLabel || '中等')
+    : (report.riskTierLabel || 'Moderate');
+
+  const bullText = report.bullPoints?.slice(0, 2).join(isChinese ? '；' : '; ') 
+    || (isChinese 
+      ? getChineseTextLocal('看好因素包括技術面改善和市場情緒向好', '看好因素包括技术面改善和市场情绪向好') 
+      : 'Bullish factors include improving technicals and positive market sentiment.');
+
+  const bearText = report.bearPoints?.slice(0, 2).join(isChinese ? '；' : '; ') 
+    || (isChinese 
+      ? getChineseTextLocal('看淡因素包括宏觀不確定性和行業競爭加劇', '看淡因素包括宏观不确定性和行业竞争加剧') 
+      : 'Bearish factors include macro uncertainty and increasing competition.');
+
+  const selfDecisionText = isChinese
+    ? getChineseTextLocal('自主決策原則', '自主决策原则')
+    : 'Principle of Self-Decision';
+
+  // ── Section 1: Summary ──
+  parts.push(isChinese
+    ? `${l.voiceSummary}：${report.companyName || report.ticker} 目前價格 ${report.price}，${report.priceUp ? '上漲' : '下跌'} ${report.priceChange}。AI 預測概率 ${report.probability}%，${recommendationTranslated} 信號。當前價格相對於 52週高點 ${report.weekHigh} 和 52週低點 ${report.weekLow}，處於中間區間。`
+    : `${l.voiceSummary}: ${report.companyName || report.ticker} is currently trading at ${report.price}, ${report.priceUp ? 'up' : 'down'} ${report.priceChange}. AI probability is ${report.probability}% with a ${report.recommendation} signal. The current price is trading between the 52-week high of ${report.weekHigh} and 52-week low of ${report.weekLow}.`
+  );
+
+  // ── Section 2: Technical Analysis ──
+  parts.push(isChinese
+    ? `${l.voiceTechnical}：RSI(14) 指標為 ${report.rsi.toFixed(1)}，${rsiStatusTranslated} 區間。${rsiStatusTranslated === '超賣' ? '這表示股票可能被低估，存在反彈潛力。' : rsiStatusTranslated === '超買' ? '這表示股票可能被高估，存在回調風險。' : '這表示市場動能處於平衡狀態。'} MACD 指標顯示 ${macdStatusTranslated} 信號，${macdStatusTranslated === '看好' ? '表示多頭動能正在增強。' : macdStatusTranslated === '看淡' ? '表示空頭動能正在增強。' : '表示趨勢方向不明確。'} 成交量為 ${report.volume}，市場參與度${parseFloat(report.volume) > 1000000 ? '較高' : '一般'}。`
+    : `${l.voiceTechnical}: The RSI(14) is at ${report.rsi.toFixed(1)}, indicating ${report.rsiStatus} conditions. ${report.rsiStatus === 'Oversold' ? 'This suggests the stock may be undervalued with potential for a rebound.' : report.rsiStatus === 'Overbought' ? 'This suggests the stock may be overvalued with potential for a pullback.' : 'This indicates balanced momentum.'} The MACD indicator shows a ${report.macdStatus} signal, ${report.macdStatus === 'Bullish' ? 'indicating bullish momentum is increasing.' : report.macdStatus === 'Bearish' ? 'indicating bearish momentum is increasing.' : 'indicating the trend direction is unclear.'} Volume is ${report.volume}, showing ${parseFloat(report.volume) > 1000000 ? 'strong' : 'moderate'} market participation.`
+  );
+
+  // ── Section 3: Fundamental Analysis ──
+  parts.push(isChinese
+    ? `${l.voiceFundamental}：公司市值 ${report.marketCap}，市盈率 ${report.peRatio}，股本回報率 ${report.roe}%。${parseFloat(report.roe) > 15 ? '股本回報率高於 15%，顯示公司盈利能力強勁。' : parseFloat(report.roe) > 8 ? '股本回報率在 8-15% 之間，顯示公司盈利能力穩定。' : '股本回報率低於 8%，顯示公司盈利能力有待改善。'} 股息收益率 ${report.dividendYield}，${report.dividendYield === '不派息' ? '公司目前不派發股息，可能將利潤用於再投資。' : '提供穩定的現金回報。'}`
+    : `${l.voiceFundamental}: The company has a market cap of ${report.marketCap}, P/E ratio of ${report.peRatio}, and ROE of ${report.roe}%. ${parseFloat(report.roe) > 15 ? 'An ROE above 15% indicates strong profitability.' : parseFloat(report.roe) > 8 ? 'An ROE between 8-15% indicates stable profitability.' : 'An ROE below 8% indicates profitability needs improvement.'} The dividend yield is ${report.dividendYield}, ${report.dividendYield === 'No Dividends' ? 'the company currently does not pay dividends, likely reinvesting profits for growth.' : 'providing stable cash returns.'}`
+  );
+
+  // ── Section 4: News Sentiment ──
+  parts.push(isChinese
+    ? `${l.voiceSentiment}：整體市場情緒為 ${sentimentText}，信心指數 ${report.sentimentScore}%。${report.sentimentScore > 60 ? '市場對該股票持樂觀態度，正面新聞佔主導。' : report.sentimentScore > 40 ? '市場情緒中性，正面和負面新聞相對平衡。' : '市場對該股票持悲觀態度，負面新聞較多。'} 技術趨勢強度為 ${report.trendStrength}%，${report.trendStrength > 60 ? '顯示強勁趨勢動能。' : report.trendStrength > 40 ? '顯示溫和趨勢動能。' : '顯示趨勢動能較弱。'}`
+    : `${l.voiceSentiment}: Overall market sentiment is ${sentimentText} with a confidence score of ${report.sentimentScore}%. ${report.sentimentScore > 60 ? 'The market is optimistic about this stock with positive news dominating.' : report.sentimentScore > 40 ? 'Market sentiment is neutral with balanced positive and negative news.' : 'The market is pessimistic about this stock with negative news prevailing.'} The technical trend strength is ${report.trendStrength}%, ${report.trendStrength > 60 ? 'indicating strong trend momentum.' : report.trendStrength > 40 ? 'indicating moderate trend momentum.' : 'indicating weak trend momentum.'}`
+  );
+
+  // ── Section 5: Risk Analysis ──
+  parts.push(isChinese
+    ? `${l.voiceRisk}：波動率為 ${riskLevel}，風險等級 ${riskTier}。${riskLevel === '高' ? '高波動率表示價格波動較大，風險較高，適合風險承受能力較強的投資者。' : riskLevel === '中等' ? '中等波動率表示價格波動適中，風險可控，適合大多數投資者。' : '低波動率表示價格波動較小，風險較低，適合保守型投資者。'} ${report.riskAssessment?.market?.length > 0 ? `市場風險包括：${report.riskAssessment.market.slice(0, 2).join('；')}` : ''}`
+    : `${l.voiceRisk}: Volatility is ${riskLevel} with a ${riskTier} risk tier. ${riskLevel === 'High' ? 'High volatility indicates larger price swings, higher risk, suitable for risk-tolerant investors.' : riskLevel === 'Moderate' ? 'Moderate volatility indicates balanced price movements, manageable risk for most investors.' : 'Low volatility indicates smaller price swings, lower risk suitable for conservative investors.'} ${report.riskAssessment?.market?.length > 0 ? `Market risks include: ${report.riskAssessment.market.slice(0, 2).join('; ')}` : ''}`
+  );
+
+  // ── Section 6: Bull Case ──
+  parts.push(isChinese
+    ? `${l.voiceBull}：${bullText}${report.bullPoints?.length > 2 ? ` 此外，${report.bullPoints.slice(2).join('；')}` : ''} 整體來看，${report.probability > 60 ? 'AI模型顯示較高的上漲概率，看好因素較多。' : report.probability > 40 ? 'AI模型顯示中性概率，看好因素和看淡因素相對平衡。' : 'AI模型顯示較低的上漲概率，看淡因素較多。'}`
+    : `${l.voiceBull}: ${bullText}${report.bullPoints?.length > 2 ? ` Additionally, ${report.bullPoints.slice(2).join('; ')}` : ''} Overall, ${report.probability > 60 ? 'the AI model shows a high probability of upside with more bullish factors.' : report.probability > 40 ? 'the AI model shows a neutral probability with balanced bullish and bearish factors.' : 'the AI model shows a low probability of upside with more bearish factors.'}`
+  );
+
+  // ── Section 7: Bear Case ──
+  parts.push(isChinese
+    ? `${l.voiceBear}：${bearText}${report.bearPoints?.length > 2 ? ` 此外，${report.bearPoints.slice(2).join('；')}` : ''} ${report.sellPct > 30 ? '賣出信號佔比較高，需謹慎評估風險。' : '賣出信號佔比適中，風險相對可控。'}`
+    : `${l.voiceBear}: ${bearText}${report.bearPoints?.length > 2 ? ` Additionally, ${report.bearPoints.slice(2).join('; ')}` : ''} ${report.sellPct > 30 ? 'Sell signals are relatively high, requiring careful risk assessment.' : 'Sell signals are moderate, with relatively manageable risk.'}`
+  );
+
+  // ── Section 8: Final Recommendation ──
+  parts.push(isChinese
+    ? `${l.voiceFinal}：基於 AI 模型分析，${recommendationTranslated} 建議。目標價 ${report.buyTarget}，止蝕位 ${report.sellTarget}。${report.buyPct > 50 ? '買入信號佔比超過 50%，建議積極考慮。' : report.holdPct > 40 ? '持有信號佔比最高，建議保持觀望。' : '賣出信號佔比較高，建議謹慎操作。'} ${selfDecisionText}：所有投資決策應基於個人風險承受能力和財務狀況。`
+    : `${l.voiceFinal}: Based on AI model analysis, the recommendation is ${report.recommendation}. The target price is ${report.buyTarget} with a stop loss at ${report.sellTarget}. ${report.buyPct > 50 ? 'Buy signals exceed 50%, suggesting active consideration.' : report.holdPct > 40 ? 'Hold signals are dominant, suggesting a wait-and-see approach.' : 'Sell signals are relatively high, suggesting caution.'} ${selfDecisionText}: All investment decisions should be based on individual risk tolerance and financial situation.`
+  );
+
+  // ── Disclaimer ──
+  const disclaimer = isChinese
+    ? '免責聲明：此分析由 DragonGPAI.com 生成，僅供參考。股票選擇遵循自主決策原則，投資前請諮詢專業持牌顧問。'
+    : 'Disclaimer: This analysis is generated by DragonGPAI.com for reference only. Stock selection follows the principle of self-decision. Please consult a licensed professional advisor before investing.';
+
+  // Join all sections with appropriate separators
+  const fullText = parts.join(isChinese ? '。 ' : '. ') + (isChinese ? '。 ' : '. ') + disclaimer;
+
+  return fullText;
+};
 
   // ── Handle Voice Play ──
   const handleSpeakAnalysis = () => {
-  if (speechIsSpeaking || isReading) {
-    stop();
-    setIsReading(false);
-    return;
-  }
-  setIsReading(true);
-  const text = generateVoiceText();
-  setVoiceText(text);
-  speak(text);
-  setTimeout(() => {
-    setIsReading(false);
-  }, Math.min(text.length * 80, 30000));
-};
-  // ── ADD THE useEffect HERE (after handleSpeakAnalysis) ──
-// 4. Auto-play useEffect
-useEffect(() => {
-  const timer = setTimeout(() => {
+    if (speechIsSpeaking || isReading) {
+      stop();
+      setIsReading(false);
+      return;
+    }
+    setIsReading(true);
     const text = generateVoiceText();
     setVoiceText(text);
     speak(text);
-    setIsReading(true);
-    
     setTimeout(() => {
       setIsReading(false);
     }, Math.min(text.length * 80, 30000));
-  }, 1500);
-  
-  return () => {
-    clearTimeout(timer);
-    stop();
   };
-}, [report]); // ← or [] if you only want it once
 
+  // ── Auto-play useEffect ──
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const text = generateVoiceText();
+      setVoiceText(text);
+      speak(text);
+      setIsReading(true);
+      
+      setTimeout(() => {
+        setIsReading(false);
+      }, Math.min(text.length * 80, 30000));
+    }, 1500);
+    
+    return () => {
+      clearTimeout(timer);
+      stop();
+    };
+  }, [report]);
 
   // ── Share Text Generation ──
   const getShareText = (includeFullAnalysis: boolean = false) => {
-    const isChinese = lang === 'zh-TW' || lang === 'zh-CN';
+    const isChinese = normalizedLang === 'zh-TW' || normalizedLang === 'zh-CN';
+    const isTraditional = normalizedLang === 'zh-TW';
     const companyName = report.companyName || report.ticker || 'N/A';
     const ticker = report.ticker || 'N/A';
     const price = report.price || 'N/A';
@@ -672,204 +792,304 @@ useEffect(() => {
     const weekHigh = report.weekHigh || 'N/A';
     const weekLow = report.weekLow || 'N/A';
 
+    const getChineseTextLocal = (traditional: string, simplified: string) => {
+      return isTraditional ? traditional : simplified;
+    };
+
+    const getRsiForShare = (status: string): string => {
+      if (!isChinese) return status;
+      const chineseStatuses = ['超買', '超买', '超賣', '超卖', '中性'];
+      if (chineseStatuses.some(s => status === s || status.includes(s))) {
+        return status;
+      }
+      const statusMap: Record<string, string> = {
+        'Overbought': getChineseTextLocal('超買', '超买'),
+        'Oversold': getChineseTextLocal('超賣', '超卖'),
+        'Neutral': getChineseTextLocal('中性', '中性'),
+      };
+      return statusMap[status] || status;
+    };
+
+    const getRecForShare = (rec: string): string => {
+      if (!isChinese) return rec;
+      const chineseRecs = ['買入', '买入', '持有', '賣出', '卖出', '強烈買入', '强烈买入', '強烈賣出', '强烈卖出'];
+      if (chineseRecs.some(s => rec === s || rec.includes(s))) {
+        return rec;
+      }
+      const recMap: Record<string, string> = {
+        'Buy': getChineseTextLocal('買入', '买入'),
+        'Hold': getChineseTextLocal('持有', '持有'),
+        'Sell': getChineseTextLocal('賣出', '卖出'),
+      };
+      return recMap[rec] || rec;
+    };
+
+    const rsiStatusTranslated = getRsiForShare(rsiStatus);
+    const recommendationTranslated = getRecForShare(recommendation);
+
     const parts = [
-      isChinese ? `📊 今日關注：${companyName} (${ticker})` : `📊 Stock Watch: ${companyName} (${ticker})`,
-      isChinese ? `💰 股價 ${price} (${change})` : `💰 Price ${price} (${change})`,
-      isChinese ? `📈 RSI(14) ${rsi} (${rsiStatus})` : `📈 RSI(14) ${rsi} (${rsiStatus})`,
-      isChinese ? `🎯 AI預測概率 ${probability}%` : `🎯 AI Probability ${probability}%`,
-      isChinese ? `💡 AI建議 ${recommendation}` : `💡 AI Recommendation ${recommendation}`,
-      isChinese ? `🎯 目標價 ${buyTarget} | 止蝕位 ${sellTarget}` : `🎯 Target ${buyTarget} | Stop Loss ${sellTarget}`,
-      isChinese ? `📆 52週區間 ${weekLow} - ${weekHigh}` : `📆 52-week Range ${weekLow} - ${weekHigh}`,
+      isChinese 
+        ? `📊 ${getChineseTextLocal('今日關注', '今日关注')}：${companyName} (${ticker})` 
+        : `📊 Stock Watch: ${companyName} (${ticker})`,
+      isChinese 
+        ? `💰 ${getChineseTextLocal('股價', '股价')} ${price} (${change})` 
+        : `💰 Price ${price} (${change})`,
+      isChinese 
+        ? `📈 RSI(14) ${rsi} (${rsiStatusTranslated})` 
+        : `📈 RSI(14) ${rsi} (${rsiStatus})`,
+      isChinese 
+        ? `🎯 AI ${getChineseTextLocal('預測概率', '预测概率')} ${probability}%` 
+        : `🎯 AI Probability ${probability}%`,
+      isChinese 
+        ? `💡 AI ${getChineseTextLocal('建議', '建议')} ${recommendationTranslated}` 
+        : `💡 AI Recommendation ${recommendation}`,
+      isChinese 
+        ? `🎯 ${getChineseTextLocal('目標價', '目标价')} ${buyTarget} | ${getChineseTextLocal('止蝕位', '止损位')} ${sellTarget}` 
+        : `🎯 Target ${buyTarget} | Stop Loss ${sellTarget}`,
+      isChinese 
+        ? `📆 52${getChineseTextLocal('週', '周')}${getChineseTextLocal('區間', '区间')} ${weekLow} - ${weekHigh}` 
+        : `📆 52-week Range ${weekLow} - ${weekHigh}`,
       '',
-      isChinese ? `⚡ 由 DragonGP.AI 提供 AI 分析` : `⚡ Powered by DragonGP.AI`,
-      isChinese ? `🔗 了解更多：https://dragongp.ai` : `🔗 Learn more: https://dragongp.ai`
+      isChinese 
+        ? `⚡ ${getChineseTextLocal('由 DragonGP.AI 提供 AI 分析', '由 DragonGP.AI 提供 AI 分析')}` 
+        : `⚡ Powered by DragonGP.AI`,
+      isChinese 
+        ? `🔗 ${getChineseTextLocal('了解更多', '了解更多')}：https://www.dragongpai.com/ai-stocks?symbol=${ticker}` 
+        : `🔗 Learn more: https://www.dragongpai.com/ai-stocks?symbol=${ticker}`
     ];
 
-    // If full analysis is requested, include the voice text
     if (includeFullAnalysis && voiceText) {
       parts.push('');
-      parts.push('📝 ' + (isChinese ? '完整分析：' : 'Full Analysis:'));
+      parts.push('📝 ' + (isChinese ? getChineseTextLocal('完整分析', '完整分析') : 'Full Analysis:'));
       parts.push(voiceText);
     }
 
     return parts.join('\n');
   };
-  // At the top of your component, add this useEffect to load Facebook SDK
-useEffect(() => {
-  // Load Facebook SDK only once
-  if (typeof window !== 'undefined' && !window.fbAsyncInit) {
-    window.fbAsyncInit = function() {
-      FB.init({
-        appId: '1741862253519730', // Replace with your actual App ID
-        autoLogAppEvents: true,
-        xfbml: true,
-        version: 'v18.0'
-      });
+
+  // ── Share Handlers ──
+  const handleFacebookShare = () => {
+    const voiceContent = voiceText || generateVoiceText();
+    const isChinese = normalizedLang === 'zh-TW' || normalizedLang === 'zh-CN';
+    const isTraditional = normalizedLang === 'zh-TW';
+    const companyName = report.companyName || report.ticker || 'N/A';
+    const ticker = report.ticker || 'N/A';
+    
+    const getChineseTextLocal = (traditional: string, simplified: string) => {
+      return isTraditional ? traditional : simplified;
     };
 
-    // Load the SDK script
-    (function(d, s, id) {
-      var js, fjs = d.getElementsByTagName(s)[0];
-      if (d.getElementById(id)) return;
-      js = d.createElement(s); js.id = id;
-      js.src = "https://connect.facebook.net/en_US/sdk.js";
-      fjs.parentNode?.insertBefore(js, fjs);
-    }(document, 'script', 'facebook-jssdk'));
-  }
-}, []);
+    const truncatedVoice = voiceContent.length > 1000 ? voiceContent.substring(0, 997) + '...' : voiceContent;
+    
+    const shareText = isChinese
+      ? `${getChineseTextLocal('📊 今日關注', '📊 今日关注')}：${companyName} (${ticker})\n\n${truncatedVoice}\n\n${getChineseTextLocal('由 DragonGP.AI 提供 AI 分析', '由 DragonGP.AI 提供 AI 分析')}\n🔗 https://www.dragongpai.com/ai-stocks?symbol=${ticker}`
+      : `📊 Stock Watch: ${companyName} (${ticker})\n\n${truncatedVoice}\n\nPowered by DragonGP.AI\n🔗 https://www.dragongpai.com/ai-stocks?symbol=${ticker}`;
 
-// ── Share Handlers ──
-// ── Share Handlers ──
-// ── Share Handlers ──
-// ── Share Handlers ──
-const handleFacebookShare = () => {
-  const voiceContent = voiceText || generateVoiceText();
-  const isChinese = lang === 'zh-TW' || lang === 'zh-CN';
-  const companyName = report.companyName || report.ticker || 'N/A';
-  const ticker = report.ticker || 'N/A';
-  const price = report.price || 'N/A';
-  const change = report.priceChange || '0.00%';
-  const probability = report.probability !== undefined ? report.probability : 50;
-  const recommendation = report.recommendation || 'HOLD';
-  const rsi = report.rsi !== undefined ? report.rsi.toFixed(1) : 'N/A';
-  const rsiStatus = report.rsiStatus || 'Neutral';
-  
-  const shareText = isChinese 
-    ? `📊 今日關注：${companyName} (${ticker})\n💰 股價 ${price} (${change})\n📈 RSI(14) ${rsi} (${rsiStatus})\n🎯 AI預測概率 ${probability}%\n💡 AI建議 ${recommendation}\n\n📝 完整分析：\n${voiceContent}\n\n⚡ 由 DragonGP.AI 提供 AI 分析\n🔗 https://dragongp.ai`
-    : `📊 Stock Watch: ${companyName} (${ticker})\n💰 Price ${price} (${change})\n📈 RSI(14) ${rsi} (${rsiStatus})\n🎯 AI Probability ${probability}%\n💡 AI Recommendation ${recommendation}\n\n📝 Full Analysis:\n${voiceContent}\n\n⚡ Powered by DragonGP.AI\n🔗 https://dragongp.ai`;
+    const encodedText = encodeURIComponent(shareText);
+    const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`https://www.dragongpai.com/ai-stocks?symbol=${ticker}`)}&quote=${encodedText}`;
+    window.open(shareUrl, 'facebook-share-dialog', 'width=626,height=436,toolbar=0,menubar=0,scrollbars=yes');
+  };
 
-  if (navigator.share) {
-    navigator.share({
-      title: `${companyName} - AI Stock Analysis`,
-      text: shareText,
-      url: window.location.href,
-    }).then(() => {
-      toast.success('Shared successfully!');
-    }).catch((error) => {
-      if (error.name !== 'AbortError') {
-        console.error('Share error:', error);
-        fallbackFacebookShare(shareText);
+  const handleWhatsAppShare = () => {
+    const voiceContent = voiceText || generateVoiceText();
+    const isChinese = normalizedLang === 'zh-TW' || normalizedLang === 'zh-CN';
+    const isTraditional = normalizedLang === 'zh-TW';
+    const companyName = report.companyName || report.ticker || 'N/A';
+    const ticker = report.ticker || 'N/A';
+    const price = report.price || 'N/A';
+    const change = report.priceChange || '0.00%';
+    const probability = report.probability !== undefined ? report.probability : 50;
+    const recommendation = report.recommendation || 'HOLD';
+    const rsi = report.rsi !== undefined ? report.rsi.toFixed(1) : 'N/A';
+    const rsiStatus = report.rsiStatus || 'Neutral';
+    
+    const getChineseTextLocal = (traditional: string, simplified: string) => {
+      return isTraditional ? traditional : simplified;
+    };
+
+    const getRsiForShare = (status: string): string => {
+      if (!isChinese) return status;
+      const chineseStatuses = ['超買', '超买', '超賣', '超卖', '中性'];
+      if (chineseStatuses.some(s => status === s || status.includes(s))) {
+        return status;
       }
-    });
-  } else {
-    fallbackFacebookShare(shareText);
-  }
-};
+      const statusMap: Record<string, string> = {
+        'Overbought': getChineseTextLocal('超買', '超买'),
+        'Oversold': getChineseTextLocal('超賣', '超卖'),
+        'Neutral': getChineseTextLocal('中性', '中性'),
+      };
+      return statusMap[status] || status;
+    };
 
-const fallbackFacebookShare = (shareText: string) => {
-  const encodedText = encodeURIComponent(shareText);
-  const encodedUrl = encodeURIComponent(window.location.href);
-  const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`;
-  
-  const width = 626;
-  const height = 436;
-  const left = (window.innerWidth - width) / 2;
-  const top = (window.innerHeight - height) / 2;
-  
-  const popup = window.open(
-    shareUrl,
-    'facebook-share-dialog',
-    `width=${width},height=${height},left=${left},top=${top},toolbar=0,menubar=0,scrollbars=yes`
-  );
-  
-  if (!popup) {
-    window.open(shareUrl, '_blank');
-  }
-};
-
-const handleWhatsAppShare = () => {
-  const voiceContent = voiceText || generateVoiceText();
-  const isChinese = lang === 'zh-TW' || lang === 'zh-CN';
-  const companyName = report.companyName || report.ticker || 'N/A';
-  const ticker = report.ticker || 'N/A';
-  const price = report.price || 'N/A';
-  const change = report.priceChange || '0.00%';
-  const probability = report.probability !== undefined ? report.probability : 50;
-  const recommendation = report.recommendation || 'HOLD';
-  const rsi = report.rsi !== undefined ? report.rsi.toFixed(1) : 'N/A';
-  const rsiStatus = report.rsiStatus || 'Neutral';
-  
-  const shareText = isChinese 
-    ? `📊 今日關注：${companyName} (${ticker})\n💰 股價 ${price} (${change})\n📈 RSI(14) ${rsi} (${rsiStatus})\n🎯 AI預測概率 ${probability}%\n💡 AI建議 ${recommendation}\n\n📝 完整分析：\n${voiceContent}\n\n⚡ 由 DragonGP.AI 提供 AI 分析\n🔗 https://dragongp.ai`
-    : `📊 Stock Watch: ${companyName} (${ticker})\n💰 Price ${price} (${change})\n📈 RSI(14) ${rsi} (${rsiStatus})\n🎯 AI Probability ${probability}%\n💡 AI Recommendation ${recommendation}\n\n📝 Full Analysis:\n${voiceContent}\n\n⚡ Powered by DragonGP.AI\n🔗 https://dragongp.ai`;
-
-  if (navigator.share) {
-    navigator.share({
-      title: `${companyName} - AI Stock Analysis`,
-      text: shareText,
-      url: window.location.href,
-    }).then(() => {
-      toast.success('Shared successfully!');
-    }).catch((error) => {
-      if (error.name !== 'AbortError') {
-        console.error('Share error:', error);
-        fallbackWhatsAppShare(shareText);
+    const getRecForShare = (rec: string): string => {
+      if (!isChinese) return rec;
+      const chineseRecs = ['買入', '买入', '持有', '賣出', '卖出', '強烈買入', '强烈买入', '強烈賣出', '强烈卖出'];
+      if (chineseRecs.some(s => rec === s || rec.includes(s))) {
+        return rec;
       }
+      const recMap: Record<string, string> = {
+        'Buy': getChineseTextLocal('買入', '买入'),
+        'Hold': getChineseTextLocal('持有', '持有'),
+        'Sell': getChineseTextLocal('賣出', '卖出'),
+      };
+      return recMap[rec] || rec;
+    };
+
+    const rsiStatusTranslated = getRsiForShare(rsiStatus);
+    const recommendationTranslated = getRecForShare(recommendation);
+
+    const truncatedVoice = voiceContent.length > 2000 ? voiceContent.substring(0, 1997) + '...' : voiceContent;
+    
+    const shareText = isChinese 
+      ? `📊 ${getChineseTextLocal('今日關注', '今日关注')}：${companyName} (${ticker})
+💰 ${getChineseTextLocal('股價', '股价')} ${price} (${change})
+📈 RSI(14) ${rsi} (${rsiStatusTranslated})
+🎯 AI ${getChineseTextLocal('預測概率', '预测概率')} ${probability}%
+💡 AI ${getChineseTextLocal('建議', '建议')} ${recommendationTranslated}
+
+📝 ${getChineseTextLocal('完整分析', '完整分析')}：
+${truncatedVoice}
+
+⚡ ${getChineseTextLocal('由 DragonGPAI.com 提供 AI 分析', '由 DragonGPAI.com 提供 AI 分析')}
+🔗 https://www.dragongpai.com/ai-stocks?symbol=${ticker}`
+      : `📊 Stock Watch: ${companyName} (${ticker})
+💰 Price ${price} (${change})
+📈 RSI(14) ${rsi} (${rsiStatus})
+🎯 AI Probability ${probability}%
+💡 AI Recommendation ${recommendation}
+
+📝 Full Analysis:
+${truncatedVoice}
+
+⚡ Powered by DragonGPAI.com
+🔗 https://www.dragongpai.com/ai-stocks?symbol=${ticker}`;
+
+    const encodedText = encodeURIComponent(shareText);
+    const whatsappUrl = `https://wa.me/?text=${encodedText}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  const handleTwitterShare = () => {
+    const voiceContent = voiceText || generateVoiceText();
+    const isChinese = normalizedLang === 'zh-TW' || normalizedLang === 'zh-CN';
+    const isTraditional = normalizedLang === 'zh-TW';
+    const companyName = report.companyName || report.ticker || 'N/A';
+    const ticker = report.ticker || 'N/A';
+    
+    const getChineseTextLocal = (traditional: string, simplified: string) => {
+      return isTraditional ? traditional : simplified;
+    };
+
+    const shortContent = voiceContent.substring(0, 80) + (voiceContent.length > 80 ? '...' : '');
+    const shareText = isChinese
+      ? `📊 ${companyName} ${getChineseTextLocal('AI分析', 'AI分析')}：${shortContent} ${getChineseTextLocal('由 DragonGPAI.com 提供', '由 DragonGPAI.com 提供')}`
+      : `📊 ${companyName} AI Analysis: ${shortContent} Powered by DragonGPAI.com`;
+    
+    const encodedText = encodeURIComponent(shareText);
+    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodeURIComponent(`https://www.dragongpai.com/ai-stocks?symbol=${ticker}`)}`;
+    window.open(twitterUrl, '_blank');
+  };
+
+  const handleLinkedInShare = () => {
+    const voiceContent = voiceText || generateVoiceText();
+    const isChinese = normalizedLang === 'zh-TW' || normalizedLang === 'zh-CN';
+    const isTraditional = normalizedLang === 'zh-TW';
+    const companyName = report.companyName || report.ticker || 'N/A';
+    const ticker = report.ticker || 'N/A';
+    
+    const getChineseTextLocal = (traditional: string, simplified: string) => {
+      return isTraditional ? traditional : simplified;
+    };
+
+    const shareText = isChinese
+      ? `${companyName} (${report.ticker}) ${getChineseTextLocal('AI分析報告', 'AI分析报告')}\n\n${voiceContent}\n\n${getChineseTextLocal('由 DragonGPAI.com 提供', '由 DragonGPAI.com 提供')}\nhttps://www.dragongpai.com/ai-stocks?symbol=${ticker}`
+      : `${companyName} (${report.ticker}) AI Analysis Report\n\n${voiceContent}\n\nPowered by DragonGPAI.com\nhttps://www.dragongpai.com/ai-stocks?symbol=${ticker}`;
+    
+    const encodedText = encodeURIComponent(shareText);
+    const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?summary=${encodedText}`;
+    window.open(linkedinUrl, '_blank');
+  };
+
+  const handleCopyText = () => {
+    const voiceContent = voiceText || generateVoiceText();
+    const isChinese = normalizedLang === 'zh-TW' || normalizedLang === 'zh-CN';
+    const isTraditional = normalizedLang === 'zh-TW';
+    const companyName = report.companyName || report.ticker || 'N/A';
+    const ticker = report.ticker || 'N/A';
+    const price = report.price || 'N/A';
+    const change = report.priceChange || '0.00%';
+    const probability = report.probability !== undefined ? report.probability : 50;
+    const recommendation = report.recommendation || 'HOLD';
+    const rsi = report.rsi !== undefined ? report.rsi.toFixed(1) : 'N/A';
+    const rsiStatus = report.rsiStatus || 'Neutral';
+    
+    const getChineseTextLocal = (traditional: string, simplified: string) => {
+      return isTraditional ? traditional : simplified;
+    };
+
+    const getRsiForShare = (status: string): string => {
+      if (!isChinese) return status;
+      const chineseStatuses = ['超買', '超买', '超賣', '超卖', '中性'];
+      if (chineseStatuses.some(s => status === s || status.includes(s))) {
+        return status;
+      }
+      const statusMap: Record<string, string> = {
+        'Overbought': getChineseTextLocal('超買', '超买'),
+        'Oversold': getChineseTextLocal('超賣', '超卖'),
+        'Neutral': getChineseTextLocal('中性', '中性'),
+      };
+      return statusMap[status] || status;
+    };
+
+    const getRecForShare = (rec: string): string => {
+      if (!isChinese) return rec;
+      const chineseRecs = ['買入', '买入', '持有', '賣出', '卖出', '強烈買入', '强烈买入', '強烈賣出', '强烈卖出'];
+      if (chineseRecs.some(s => rec === s || rec.includes(s))) {
+        return rec;
+      }
+      const recMap: Record<string, string> = {
+        'Buy': getChineseTextLocal('買入', '买入'),
+        'Hold': getChineseTextLocal('持有', '持有'),
+        'Sell': getChineseTextLocal('賣出', '卖出'),
+      };
+      return recMap[rec] || rec;
+    };
+
+    const rsiStatusTranslated = getRsiForShare(rsiStatus);
+    const recommendationTranslated = getRecForShare(recommendation);
+
+    const shareText = isChinese 
+      ? `📊 ${getChineseTextLocal('今日關注', '今日关注')}：${companyName} (${ticker})
+💰 ${getChineseTextLocal('股價', '股价')} ${price} (${change})
+📈 RSI(14) ${rsi} (${rsiStatusTranslated})
+🎯 AI ${getChineseTextLocal('預測概率', '预测概率')} ${probability}%
+💡 AI ${getChineseTextLocal('建議', '建议')} ${recommendationTranslated}
+
+📝 ${getChineseTextLocal('完整分析', '完整分析')}：
+${voiceContent}
+
+⚡ ${getChineseTextLocal('由 DragonGPAI.com 提供 AI 分析', '由 DragonGPAI.com 提供 AI 分析')}
+🔗 https://www.dragongpai.com/ai-stocks?symbol=${ticker}`
+      : `📊 Stock Watch: ${companyName} (${ticker})
+💰 Price ${price} (${change})
+📈 RSI(14) ${rsi} (${rsiStatus})
+🎯 AI Probability ${probability}%
+💡 AI Recommendation ${recommendation}
+
+📝 Full Analysis:
+${voiceContent}
+
+⚡ Powered by DragonGPAI.com
+🔗 https://www.dragongpai.com/ai-stocks?symbol=${ticker}`;
+
+    navigator.clipboard.writeText(shareText).then(() => {
+      setIsCopied(true);
+      toast.success(l.copied || 'Copied!');
+      setTimeout(() => setIsCopied(false), 3000);
+    }).catch(() => {
+      toast.error('Failed to copy');
     });
-  } else {
-    fallbackWhatsAppShare(shareText);
-  }
-};
-
-const fallbackWhatsAppShare = (shareText: string) => {
-  const encodedText = encodeURIComponent(shareText);
-  const whatsappUrl = `https://wa.me/?text=${encodedText}`;
-  window.open(whatsappUrl, '_blank');
-};
-
-const handleTwitterShare = () => {
-  const voiceContent = voiceText || generateVoiceText();
-  const isChinese = lang === 'zh-TW' || lang === 'zh-CN';
-  const companyName = report.companyName || report.ticker || 'N/A';
-  
-  const shortContent = voiceContent.substring(0, 80) + (voiceContent.length > 80 ? '...' : '');
-  const shareText = isChinese
-    ? `📊 ${companyName} AI分析：${shortContent} 由 DragonGP.AI 提供`
-    : `📊 ${companyName} AI Analysis: ${shortContent} Powered by DragonGP.AI`;
-  
-  const encodedText = encodeURIComponent(shareText);
-  const twitterUrl = `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodeURIComponent(window.location.href)}`;
-  window.open(twitterUrl, '_blank');
-};
-
-const handleLinkedInShare = () => {
-  const voiceContent = voiceText || generateVoiceText();
-  const isChinese = lang === 'zh-TW' || lang === 'zh-CN';
-  const companyName = report.companyName || report.ticker || 'N/A';
-  
-  const shareText = isChinese
-    ? `${companyName} (${report.ticker}) AI分析報告\n\n${voiceContent}\n\n由 DragonGP.AI 提供\nhttps://dragongp.ai`
-    : `${companyName} (${report.ticker}) AI Analysis Report\n\n${voiceContent}\n\nPowered by DragonGP.AI\nhttps://dragongp.ai`;
-  
-  const encodedText = encodeURIComponent(shareText);
-  const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?summary=${encodedText}`;
-  window.open(linkedinUrl, '_blank');
-};
-
-const handleCopyText = () => {
-  const voiceContent = voiceText || generateVoiceText();
-  const isChinese = lang === 'zh-TW' || lang === 'zh-CN';
-  const companyName = report.companyName || report.ticker || 'N/A';
-  const ticker = report.ticker || 'N/A';
-  const price = report.price || 'N/A';
-  const change = report.priceChange || '0.00%';
-  const probability = report.probability !== undefined ? report.probability : 50;
-  const recommendation = report.recommendation || 'HOLD';
-  const rsi = report.rsi !== undefined ? report.rsi.toFixed(1) : 'N/A';
-  const rsiStatus = report.rsiStatus || 'Neutral';
-  
-  const shareText = isChinese 
-    ? `📊 今日關注：${companyName} (${ticker})\n💰 股價 ${price} (${change})\n📈 RSI(14) ${rsi} (${rsiStatus})\n🎯 AI預測概率 ${probability}%\n💡 AI建議 ${recommendation}\n\n📝 完整分析：\n${voiceContent}\n\n⚡ 由 DragonGP.AI 提供 AI 分析\n🔗 https://dragongp.ai`
-    : `📊 Stock Watch: ${companyName} (${ticker})\n💰 Price ${price} (${change})\n📈 RSI(14) ${rsi} (${rsiStatus})\n🎯 AI Probability ${probability}%\n💡 AI Recommendation ${recommendation}\n\n📝 Full Analysis:\n${voiceContent}\n\n⚡ Powered by DragonGP.AI\n🔗 https://dragongp.ai`;
-
-  navigator.clipboard.writeText(shareText).then(() => {
-    setIsCopied(true);
-    toast.success(l.copied || 'Copied!');
-    setTimeout(() => setIsCopied(false), 3000);
-  }).catch(() => {
-    toast.error('Failed to copy');
-  });
-};
+  };
 
   // ── Print/PDF functions ──
   const handlePrint = () => {
@@ -952,6 +1172,152 @@ const handleCopyText = () => {
     return '';
   };
 
+  // ── Price vs Index Chart ──
+  const PriceVsIndexChart = ({ lang: chartLang, ticker, companyName }: { lang: LangKey; ticker: string; companyName?: string }) => {
+    const chartLabels = {
+      en: {
+        title: "12-Month Price vs. Index Performance",
+        stock: "Stock",
+        index: "Index",
+        legend: "Indexed to 100 at start of period. Past performance is not indicative of future results.",
+      },
+      "zh-TW": {
+        title: "12個月股價 vs 指數表現",
+        stock: "股票",
+        index: "指數",
+        legend: "以期初為基數 100 計算。過往表現並非未來表現的指標。",
+      },
+      "zh-CN": {
+        title: "12个月股价 vs 指数表现",
+        stock: "股票",
+        index: "指数",
+        legend: "以期初为基数 100 计算。过往表现并非未来表现的指标。",
+      },
+    };
+
+    const chartNormalizedLang = ((): LangKey => {
+      if (chartLang === 'en' || chartLang === 'zh-TW' || chartLang === 'zh-CN') return chartLang;
+      if (chartLang === 'tc' || chartLang === 'tw' || chartLang === 'zh' || chartLang === 'zh_TW' || chartLang === 'zh_HK' || chartLang === 'zh-HK') return 'zh-TW';
+      if (chartLang === 'sc' || chartLang === 'cn' || chartLang === 'zh_CN') return 'zh-CN';
+      return 'en';
+    })();
+
+    const cl = chartLabels[chartNormalizedLang] || chartLabels.en;
+
+    // Generate synthetic 12-month performance data based on ticker
+    const generatePerformanceData = (tickerParam: string) => {
+      // FIX: Handle undefined or empty ticker
+      const safeTicker = tickerParam || 'DEFAULT';
+      const months = ["Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb"];
+      const seed = safeTicker.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+      const rng = (i: number) => Math.sin(seed * 0.1 + i * 0.7) * 0.5 + 0.5;
+
+      let stockVal = 100;
+      let indexVal = 100;
+
+      return months.map((m, i) => {
+        if (i > 0) {
+          stockVal += (rng(i) - 0.4) * 8;
+          indexVal += (rng(i + 50) - 0.45) * 5;
+        }
+        return {
+          month: m,
+          stock: Math.round(stockVal * 10) / 10,
+          index: Math.round(indexVal * 10) / 10,
+        };
+      });
+    };
+
+    // Map ticker to benchmark
+    const getIndexName = (tickerParam: string): string => {
+      if (!tickerParam) return "S&P 500";
+      if (tickerParam.endsWith(".HK")) return "HSI";
+      if (tickerParam.endsWith(".TW")) return "TAIEX";
+      return "S&P 500";
+    };
+
+    const safeTicker = ticker || 'DEFAULT';
+    const data = generatePerformanceData(safeTicker);
+    const indexName = getIndexName(safeTicker);
+    const stockLabel = companyName || safeTicker;
+
+    return (
+      <div style={{ pageBreakInside: "avoid", breakInside: "avoid" }}>
+        <h3
+          className="text-[15px] font-bold tracking-wide uppercase pb-2 mb-4"
+          style={{
+            fontFamily: "'Playfair Display', Georgia, 'Times New Roman', serif",
+            color: "#1e293b",
+            borderBottom: "2px solid #1e293b",
+          }}
+        >
+          {cl.title}
+        </h3>
+
+        <div
+          className="rounded p-4"
+          style={{ border: "1px solid #e5e7eb", background: "#fafbfc" }}
+        >
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis
+                dataKey="month"
+                tick={{ fontSize: 10, fill: "#94a3b8" }}
+                axisLine={{ stroke: "#e2e8f0" }}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "#94a3b8" }}
+                axisLine={{ stroke: "#e2e8f0" }}
+                tickLine={false}
+                domain={[(dataMin: number) => Math.floor(Math.min(dataMin, 95)), (dataMax: number) => Math.ceil(Math.max(dataMax, 105))]}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "#1e293b",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  color: "#ffffff",
+                }}
+                itemStyle={{ color: "#ffffff" }}
+                labelStyle={{ color: "#94a3b8", fontSize: "10px" }}
+              />
+              <Legend
+                wrapperStyle={{ fontSize: "10px", color: "#64748b" }}
+                iconType="line"
+              />
+              <Line
+                type="monotone"
+                dataKey="stock"
+                name={`${stockLabel} (${cl.stock})`}
+                stroke="#003366"
+                strokeWidth={2.5}
+                dot={false}
+                activeDot={{ r: 4, fill: "#003366" }}
+              />
+              <Line
+                type="monotone"
+                dataKey="index"
+                name={indexName}
+                stroke="#94a3b8"
+                strokeWidth={1.5}
+                strokeDasharray="5 3"
+                dot={false}
+                activeDot={{ r: 3, fill: "#94a3b8" }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <p className="mt-2 text-[9px] italic leading-relaxed" style={{ color: "#94a3b8" }}>
+          {cl.legend}
+        </p>
+      </div>
+    );
+  };
+
   // ── Report Content ──
   return (
     <div id="stock-report" className="max-w-4xl mx-auto px-4 py-6 print:px-0 print:py-0">
@@ -972,7 +1338,7 @@ const handleCopyText = () => {
           )}
         </div>
         <span className="text-xs text-muted-foreground">
-          {lang === 'zh-TW' ? '廣東話' : lang === 'zh-CN' ? '普通話' : 'English'}
+          {normalizedLang === 'zh-TW' ? '廣東話' : normalizedLang === 'zh-CN' ? '普通話' : 'English'}
         </span>
       </div>
 
@@ -1046,7 +1412,7 @@ const handleCopyText = () => {
       {/* ── Recommendation Sidebar ── */}
       <Section>
         <RecommendationSidebar
-          lang={lang}
+          lang={normalizedLang}
           currentPrice={report.price}
           targetPrice={report.buyTarget}
           buyPct={report.buyPct}
@@ -1062,7 +1428,7 @@ const handleCopyText = () => {
           <ProbabilityGauge value={report.probability} size={140} />
         </div>
         <div className="flex flex-col items-center p-4 rounded-lg border border-gray-200 bg-gray-50/50">
-          <AnalystConfidenceGauge value={report.confidenceScore || 65} lang={lang} />
+          <AnalystConfidenceGauge value={report.confidenceScore || 65} lang={normalizedLang} />
         </div>
       </div>
 
@@ -1122,12 +1488,16 @@ const handleCopyText = () => {
 
       {/* ── Price vs Index Chart ── */}
       <Section>
-        <PriceVsIndexChart lang={lang} ticker={report.ticker} companyName={report.companyName} />
+        <PriceVsIndexChart 
+          lang={normalizedLang} 
+          ticker={report.ticker || 'UNKNOWN'} 
+          companyName={report.companyName} 
+        />
       </Section>
 
       {/* ── Company Profile ── */}
       <CompanyProfile
-        lang={lang}
+        lang={normalizedLang}
         companyName={report.companyName || report.ticker}
         description={report.companyDescription || ''}
         sector={report.sector}
@@ -1136,7 +1506,7 @@ const handleCopyText = () => {
 
       {/* ── Market Depth ── */}
       <MarketDepthSection
-        lang={lang}
+        lang={normalizedLang}
         bid={report.bid}
         ask={report.ask}
         bidSize={report.bidSize}
@@ -1150,7 +1520,7 @@ const handleCopyText = () => {
 
       {/* ── Peer Comparison ── */}
       <PeerComparisonTable
-        lang={lang}
+        lang={normalizedLang}
         targetTicker={report.ticker}
         targetCompany={report.companyName || report.ticker}
         targetPrice={report.price}
@@ -1161,7 +1531,7 @@ const handleCopyText = () => {
       />
 
       {/* ── News ── */}
-      <NewsSection lang={lang} news={report.news} />
+      <NewsSection lang={normalizedLang} news={report.news} />
 
       {/* ── Bull & Bear Cases ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-3">
@@ -1284,66 +1654,8 @@ const handleCopyText = () => {
         <p className="text-[10px]">{l.footnote3}</p>
       </div>
 
-      {/* ── Action Bar ── */}
-      <div className="flex flex-wrap items-center justify-center gap-2 py-4 print:hidden border-t border-gray-200 mt-4">
-        <Button variant="outline" size="sm" onClick={handleSelectAnother}>
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          {l.selectAnother}
-        </Button>
 
-        <Button variant="outline" size="sm" onClick={handlePrint}>
-          <Printer className="h-4 w-4 mr-1" />
-          {l.printPDF}
-        </Button>
 
-        <Button variant="outline" size="sm" onClick={handleSaveAsText}>
-          <Download className="h-4 w-4 mr-1" />
-          {l.savePDF}
-        </Button>
-
-        <Button variant="outline" size="sm" onClick={handleSavePDF} disabled={pdfLoading}>
-          {pdfLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileDown className="h-4 w-4 mr-1" />}
-          {pdfLoading ? l.downloading : l.downloadPDF}
-        </Button>
-
-        {!inWatchlist && onAddWatchlist && (
-          <Button variant="outline" size="sm" onClick={onAddWatchlist} className="text-amber-600 border-amber-300 hover:bg-amber-50">
-            <Star className="h-4 w-4 mr-1 fill-amber-400 text-amber-400" />
-            {l.addWatchlist}
-          </Button>
-        )}
-      </div>
-
-      {/* ── Share Buttons ── */}
-      <div className="flex flex-wrap items-center justify-center gap-2 py-2 print:hidden border-t border-gray-200">
-        <span className="text-xs text-muted-foreground mr-1">{l.share}:</span>
-        <button onClick={handleFacebookShare} className="p-1.5 rounded hover:bg-gray-100 transition-colors" title={l.shareFacebook}>
-          <Facebook className="h-4 w-4 text-[#1877F2]" />
-        </button>
-        <button onClick={handleWhatsAppShare} className="p-1.5 rounded hover:bg-gray-100 transition-colors" title={l.shareWhatsApp}>
-          <MessageCircle className="h-4 w-4 text-[#25D366]" />
-        </button>
-        <button onClick={handleTwitterShare} className="p-1.5 rounded hover:bg-gray-100 transition-colors" title={l.shareTwitter}>
-          <Twitter className="h-4 w-4 text-[#000000]" />
-        </button>
-        <button onClick={handleLinkedInShare} className="p-1.5 rounded hover:bg-gray-100 transition-colors" title={l.shareLinkedIn}>
-          <Linkedin className="h-4 w-4 text-[#0A66C2]" />
-        </button>
-        <button onClick={handleCopyText} className="p-1.5 rounded hover:bg-gray-100 transition-colors" title={l.copyReport}>
-          {isCopied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-        </button>
-      </div>
-
-      {/* ── Go to Mark6 ── */}
-      <div className="py-3 print:hidden">
-        <Link
-          to="/ai-games"
-          className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-yellow-500 text-white font-bold rounded-xl hover:opacity-90 transition-opacity"
-        >
-          <Sparkles className="h-5 w-5" />
-          {l.goToMark6}
-        </Link>
-      </div>
     </div>
   );
 };

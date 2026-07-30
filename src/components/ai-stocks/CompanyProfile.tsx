@@ -7,12 +7,12 @@ const t = {
     about: "About",
     noDescription: "Company description not available for this ticker.",
   },
-  tc: {
+  "zh-TW": {
     title: "公司簡介",
     about: "關於",
     noDescription: "此股票代碼暫無公司簡介。",
   },
-  sc: {
+  "zh-CN": {
     title: "公司简介",
     about: "关于",
     noDescription: "此股票代码暂无公司简介。",
@@ -28,7 +28,15 @@ interface Props {
 }
 
 const CompanyProfile = ({ lang, companyName, description, sector, industry }: Props) => {
-  const l = t[lang];
+  // Normalize language
+  const normalizedLang = ((): LangKey => {
+    if (lang === 'en' || lang === 'zh-TW' || lang === 'zh-CN') return lang;
+    if (lang === 'tc' || lang === 'tw' || lang === 'zh' || lang === 'zh_TW' || lang === 'zh_HK' || lang === 'zh-HK') return 'zh-TW';
+    if (lang === 'sc' || lang === 'cn' || lang === 'zh_CN') return 'zh-CN';
+    return 'en';
+  })();
+
+  const l = t[normalizedLang] || t.en;
 
   return (
     <div className="py-5" style={{ pageBreakInside: "avoid", breakInside: "avoid" }}>

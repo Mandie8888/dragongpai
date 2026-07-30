@@ -15,7 +15,7 @@ const t = {
     afterHours: "After Hours",
     prevCloseVol: "Prev. Close Vol",
   },
-  tc: {
+  "zh-TW": {
     title: "市場深度",
     bid: "買入價",
     ask: "賣出價",
@@ -29,7 +29,7 @@ const t = {
     afterHours: "盤後交易",
     prevCloseVol: "前日成交量",
   },
-  sc: {
+  "zh-CN": {
     title: "市场深度",
     bid: "买入价",
     ask: "卖出价",
@@ -61,7 +61,15 @@ interface Props {
 const MarketDepthSection = ({
   lang, bid, ask, bidSize, askSize, dayRange, volume, marketState, currencySymbol, previousCloseVolume,
 }: Props) => {
-  const l = t[lang];
+  // Normalize language
+  const normalizedLang = ((): LangKey => {
+    if (lang === 'en' || lang === 'zh-TW' || lang === 'zh-CN') return lang;
+    if (lang === 'tc' || lang === 'tw' || lang === 'zh' || lang === 'zh_TW' || lang === 'zh_HK' || lang === 'zh-HK') return 'zh-TW';
+    if (lang === 'sc' || lang === 'cn' || lang === 'zh_CN') return 'zh-CN';
+    return 'en';
+  })();
+
+  const l = t[normalizedLang] || t.en;
 
   const getMarketStatusLabel = () => {
     switch (marketState) {

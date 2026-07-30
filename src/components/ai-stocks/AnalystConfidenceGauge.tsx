@@ -2,8 +2,8 @@ import type { LangKey } from "@/contexts/LanguageContext";
 
 const convictionLabels = {
   en: { title: "Analyst Confidence", low: "Low", medium: "Medium", high: "High" },
-  tc: { title: "分析師信心度", low: "低", medium: "中", high: "高" },
-  sc: { title: "分析师信心度", low: "低", medium: "中", high: "高" },
+  "zh-TW": { title: "分析師信心度", low: "低", medium: "中", high: "高" },
+  "zh-CN": { title: "分析师信心度", low: "低", medium: "中", high: "高" },
 };
 
 interface Props {
@@ -12,7 +12,15 @@ interface Props {
 }
 
 const AnalystConfidenceGauge = ({ value, lang }: Props) => {
-  const l = convictionLabels[lang];
+  // Normalize language
+  const normalizedLang = ((): LangKey => {
+    if (lang === 'en' || lang === 'zh-TW' || lang === 'zh-CN') return lang;
+    if (lang === 'tc' || lang === 'tw' || lang === 'zh' || lang === 'zh_TW' || lang === 'zh_HK' || lang === 'zh-HK') return 'zh-TW';
+    if (lang === 'sc' || lang === 'cn' || lang === 'zh_CN') return 'zh-CN';
+    return 'en';
+  })();
+
+  const l = convictionLabels[normalizedLang] || convictionLabels.en;
   const clamped = Math.max(0, Math.min(100, value));
 
   // Map value to conviction tier
@@ -117,7 +125,6 @@ function describeArc(cx: number, cy: number, r: number, startAngle: number, endA
   const x2 = cx + r * Math.cos(endAngle);
   const y2 = cy - r * Math.sin(endAngle);
   const largeArc = Math.abs(startAngle - endAngle) > Math.PI ? 1 : 0;
-  // Sweep: clockwise when going from startAngle (left) to endAngle (right) on top semi
   return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
 }
 

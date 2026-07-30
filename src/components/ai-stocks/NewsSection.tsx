@@ -9,13 +9,13 @@ const t = {
     noNews: "No recent news available for this ticker.",
     disclaimer: "News sourced from third-party providers. DragonGP AI does not verify or endorse the content.",
   },
-  tc: {
+  "zh-TW": {
     title: "最新新聞",
     readMore: "閱讀更多",
     noNews: "此股票代碼暫無最新新聞。",
     disclaimer: "新聞來源於第三方提供商。DragonGP AI 不對內容進行驗證或背書。",
   },
-  sc: {
+  "zh-CN": {
     title: "最新新闻",
     readMore: "阅读更多",
     noNews: "此股票代码暂无最新新闻。",
@@ -39,7 +39,15 @@ const formatDate = (iso: string | null): string => {
 };
 
 const NewsSection = ({ lang, news }: Props) => {
-  const l = t[lang];
+  // Normalize language
+  const normalizedLang = ((): LangKey => {
+    if (lang === 'en' || lang === 'zh-TW' || lang === 'zh-CN') return lang;
+    if (lang === 'tc' || lang === 'tw' || lang === 'zh' || lang === 'zh_TW' || lang === 'zh_HK' || lang === 'zh-HK') return 'zh-TW';
+    if (lang === 'sc' || lang === 'cn' || lang === 'zh_CN') return 'zh-CN';
+    return 'en';
+  })();
+
+  const l = t[normalizedLang] || t.en;
   // Limit to top 3 most recent items
   const limitedNews = news.slice(0, 3);
 

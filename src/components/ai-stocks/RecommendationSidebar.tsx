@@ -13,7 +13,7 @@ const labels = {
     sell: "SELL",
     underweight: "UNDERWEIGHT",
   },
-  tc: {
+  "zh-TW": {
     rating: "AI 評級",
     targetPrice: "12個月目標價",
     upside: "上升潛力",
@@ -24,7 +24,7 @@ const labels = {
     sell: "賣出",
     underweight: "減持",
   },
-  sc: {
+  "zh-CN": {
     rating: "AI 评级",
     targetPrice: "12个月目标价",
     upside: "上升潜力",
@@ -47,7 +47,26 @@ interface Props {
 }
 
 const RecommendationSidebar = ({ lang, currentPrice, targetPrice, buyPct, holdPct, sellPct }: Props) => {
-  const l = labels[lang];
+  // Normalize language - handle any possible language value
+  const normalizedLang = ((): LangKey => {
+    // If it's already 'en', 'zh-TW', or 'zh-CN', use as-is
+    if (lang === 'en' || lang === 'zh-TW' || lang === 'zh-CN') {
+      return lang;
+    }
+    // If it's 'tc', 'tw', 'zh', 'zh_TW', 'zh_HK', 'zh-HK', etc. map to 'zh-TW'
+    if (lang === 'tc' || lang === 'tw' || lang === 'zh' || lang === 'zh_TW' || lang === 'zh_HK' || lang === 'zh-HK') {
+      return 'zh-TW';
+    }
+    // If it's 'sc', 'cn', 'zh_CN', etc. map to 'zh-CN'
+    if (lang === 'sc' || lang === 'cn' || lang === 'zh_CN') {
+      return 'zh-CN';
+    }
+    // Default to English
+    return 'en';
+  })();
+
+  // Get labels using normalized language, fallback to English
+  const l = labels[normalizedLang] || labels.en;
 
   const parsePrice = (v: string) => parseFloat(v.replace(/[^0-9.\-]/g, ""));
   const cur = parsePrice(currentPrice);

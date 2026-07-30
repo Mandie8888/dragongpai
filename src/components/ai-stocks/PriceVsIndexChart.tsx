@@ -1,3 +1,4 @@
+// src/components/ai-stocks/PriceVsIndexChart.tsx
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import type { LangKey } from "@/contexts/LanguageContext";
 
@@ -8,13 +9,13 @@ const labels = {
     index: "Index",
     legend: "Indexed to 100 at start of period. Past performance is not indicative of future results.",
   },
-  tc: {
+  "zh-TW": {
     title: "12個月股價 vs 指數表現",
     stock: "股票",
     index: "指數",
     legend: "以期初為基數 100 計算。過往表現並非未來表現的指標。",
   },
-  sc: {
+  "zh-CN": {
     title: "12个月股价 vs 指数表现",
     stock: "股票",
     index: "指数",
@@ -24,6 +25,11 @@ const labels = {
 
 /* Generate synthetic 12-month performance data based on ticker */
 const generatePerformanceData = (ticker: string) => {
+  // Handle undefined or empty ticker
+  if (!ticker || typeof ticker !== 'string') {
+    ticker = 'DEFAULT';
+  }
+  
   const months = ["Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb"];
   const seed = ticker.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
   const rng = (i: number) => Math.sin(seed * 0.1 + i * 0.7) * 0.5 + 0.5;
@@ -46,6 +52,7 @@ const generatePerformanceData = (ticker: string) => {
 
 /* Map ticker to benchmark */
 const getIndexName = (ticker: string): string => {
+  if (!ticker) return "S&P 500";
   if (ticker.endsWith(".HK")) return "HSI";
   if (ticker.endsWith(".TW")) return "TAIEX";
   return "S&P 500";
@@ -58,10 +65,21 @@ interface Props {
 }
 
 const PriceVsIndexChart = ({ lang, ticker, companyName }: Props) => {
-  const l = labels[lang];
-  const data = generatePerformanceData(ticker);
-  const indexName = getIndexName(ticker);
-  const stockLabel = companyName || ticker;
+  // Normalize language
+  const normalizedLang = ((): LangKey => {
+    if (lang === 'en' || lang === 'zh-TW' || lang === 'zh-CN') return lang;
+    if (lang === 'tc' || lang === 'tw' || lang === 'zh' || lang === 'zh_TW' || lang === 'zh_HK' || lang === 'zh-HK') return 'zh-TW';
+    if (lang === 'sc' || lang === 'cn' || lang === 'zh_CN') return 'zh-CN';
+    return 'en';
+  })();
+
+  const l = labels[normalizedLang] || labels.en;
+  
+  // Ensure ticker is a string
+  const safeTicker = ticker || 'DEFAULT';
+  const data = generatePerformanceData(safeTicker);
+  const indexName = getIndexName(safeTicker);
+  const stockLabel = companyName || safeTicker;
 
   return (
     <div style={{ pageBreakInside: "avoid", breakInside: "avoid" }}>
