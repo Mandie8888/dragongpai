@@ -1,41 +1,48 @@
 // src/components/ai-stocks/ReportActionBar.tsx
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Printer, Share2, ArrowLeft, Sparkles, Download, Star, FileDown, Loader2, Facebook } from "lucide-react";
+import { Printer, Share2, ArrowLeft, Sparkles, Download, Star, FileDown, Loader2, Facebook, MessageCircle, Copy, Check } from "lucide-react";
 import type { LangKey } from "@/contexts/LanguageContext";
+import { toast } from "sonner";
 
 const labels = {
   en: {
     pickAnother: "Select Another Stock",
     print: "Print",
     share: "Share",
-    shareFacebook: "Share on Facebook",
-    save: "Save as Text",
+    shareWhatsApp: "Share",
+    shareFacebook: "Share",
+    shareLine: "Share",
+    save: "Copy Text",
     downloadPdf: "Download PDF",
     downloading: "Generating…",
-    saveWatchlist: "Save to My Watchlist",
+    saveWatchlist: "Save",
     explore: "Go to AI Mark6 Probability Game Now",
   },
   "zh-TW": {
     pickAnother: "選擇其他股票",
     print: "列印",
     share: "分享",
-    shareFacebook: "分享到 Facebook",
-    save: "儲存為文字",
+    shareWhatsApp: "分享",
+    shareFacebook: "分享",
+    shareLine: "分享",
+    save: "複製文字",
     downloadPdf: "下載 PDF",
     downloading: "生成中…",
-    saveWatchlist: "儲存至我的監察名單",
+    saveWatchlist: "儲存",
     explore: "立即前往 AI Mark6 概率遊戲",
   },
   "zh-CN": {
     pickAnother: "选择其他股票",
     print: "打印",
     share: "分享",
-    shareFacebook: "分享到 Facebook",
-    save: "保存为文本",
+    shareWhatsApp: "分享",
+    shareFacebook: "分享",
+    shareLine: "分享",
+    save: "复制文字",
     downloadPdf: "下载 PDF",
     downloading: "生成中…",
-    saveWatchlist: "保存到我的监察名单",
+    saveWatchlist: "保存",
     explore: "立即前往 AI Mark6 概率游戏",
   },
 };
@@ -89,6 +96,7 @@ const ReportActionBar = ({
   const t = labels[normalizedLang] || labels.en;
   const mktLabel = marketLabels[market]?.[normalizedLang] ?? marketLabels.us[normalizedLang] ?? marketLabels.us.en;
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   const handlePrint = () => window.print();
 
@@ -180,31 +188,66 @@ const ReportActionBar = ({
     window.open(waUrl, "_blank");
   };
 
+  // Line Share
+  const handleLineShare = () => {
+    const shareText = generateShareText();
+    const encodedText = encodeURIComponent(shareText);
+    
+    const lineUrl = `https://line.me/R/share?text=${encodedText}`;
+    const lineAppUrl = `line://msg/text/${encodedText}`;
+    
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      const lineAppWindow = window.open(lineAppUrl, '_blank');
+      if (!lineAppWindow) {
+        window.open(lineUrl, '_blank');
+      }
+    } else {
+      window.open(lineUrl, '_blank');
+    }
+  };
+
   // Facebook Share
   const handleFacebookShare = () => {
     const shareText = generateShareText();
-    const encodedText = encodeURIComponent(shareText);
     const encodedUrl = encodeURIComponent(window.location.href);
     
-    // Facebook sharer URL with quote parameter to include the share text
-    const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`;
-    
-    // Open in a popup window
-    const width = 626;
-    const height = 436;
-    const left = (window.innerWidth - width) / 2;
-    const top = (window.innerHeight - height) / 2;
-    
-    const popup = window.open(
-      fbUrl,
-      'facebook-share-dialog',
-      `width=${width},height=${height},left=${left},top=${top},toolbar=0,menubar=0,scrollbars=yes`
-    );
-    
-    if (!popup) {
-      // Fallback: open in new tab
+    // Copy text to clipboard first
+    navigator.clipboard.writeText(shareText).then(() => {
+      setIsCopied(true);
+      toast.success('Copied to clipboard!');
+      setTimeout(() => setIsCopied(false), 3000);
+      
+      // Then open Facebook
+      const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
       window.open(fbUrl, '_blank');
-    }
+    }).catch(() => {
+      // If clipboard fails, just open Facebook
+      const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+      window.open(fbUrl, '_blank');
+    });
+  };
+
+  // Copy Text (replaces Save as Text)
+  const handleCopyText = () => {
+    const shareText = generateShareText();
+    navigator.clipboard.writeText(shareText).then(() => {
+      setIsCopied(true);
+      toast.success('✅ Report copied to clipboard!');
+      setTimeout(() => setIsCopied(false), 3000);
+    }).catch(() => {
+      // Fallback: copy using textarea
+      const textarea = document.createElement('textarea');
+      textarea.value = shareText;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setIsCopied(true);
+      toast.success('✅ Report copied to clipboard!');
+      setTimeout(() => setIsCopied(false), 3000);
+    });
   };
 
   const handleSave = () => {
@@ -324,7 +367,15 @@ const ReportActionBar = ({
         
         {/* WhatsApp Share Button */}
         <button onClick={handleWhatsAppShare} className={`${btnBase} bg-[#25D366] text-white hover:bg-[#20BD5A]`}>
-          <Share2 size={16} /> {t.share}
+          <MessageCircle size={16} /> {t.shareWhatsApp}
+        </button>
+        
+        {/* Line Share Button */}
+        <button onClick={handleLineShare} className={`${btnBase} bg-[#06C755] text-white hover:bg-[#05a848]`}>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" className="shrink-0">
+            <path d="M12 2C6.48 2 2 6.04 2 10.98c0 2.73 1.37 5.15 3.52 6.75.13.09.21.23.19.38l-.5 1.78c-.04.14.09.27.23.19l2.03-1.19c.12-.07.27-.07.39-.01.93.3 1.93.46 2.99.46 5.52 0 10-4.04 10-9 0-5.36-4.48-9-10-9z"/>
+          </svg>
+          {t.shareLine}
         </button>
         
         {/* Facebook Share Button */}
@@ -334,9 +385,15 @@ const ReportActionBar = ({
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-3">
-        <button onClick={handleSave} className={`${btnBase} bg-emerald-600 text-white hover:bg-emerald-500`}>
-          <Download size={16} /> {t.save}
+        {/* Copy Text Button (replaces Save as Text) */}
+        <button 
+          onClick={handleCopyText}
+          className={`${btnBase} ${isCopied ? 'bg-green-600 text-white' : 'bg-emerald-600 text-white hover:bg-emerald-500'}`}
+        >
+          {isCopied ? <Check size={16} /> : <Copy size={16} />}
+          {isCopied ? 'Copied!' : t.save}
         </button>
+        
         <button
           onClick={handleDownloadPdf}
           disabled={pdfLoading}
