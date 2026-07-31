@@ -81,6 +81,8 @@ const AIGames = () => {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [predictionSets, setPredictionSets] = useState<number[][]>([]);
+  const [hasWelcomeSpoken, setHasWelcomeSpoken] = useState(false);
+  const [isWelcomeSpeechQueued, setIsWelcomeSpeechQueued] = useState(false);
 
   const hasAccess = subscription.subscribed || credits > 0 || creditsLoading;
   const isStartEnabled = !!activeCharacterId && !!activeConfig;
@@ -100,6 +102,73 @@ const AIGames = () => {
   };
 
   const currentDisplayLang = getDisplayLang();
+
+  // ── Welcome Speech ──
+  const speakWelcome = () => {
+    if (!voiceEnabled || isWelcomeSpeechQueued) return;
+    
+    // Stop any ongoing speech
+    stopSpeaking();
+    
+    const voiceLang = getVoiceLang();
+    let message = '';
+    
+    if (lang === 'en') {
+      message = `Welcome to Mark6 and Taiwan Big Lotto. Please select your preferred game type: Hong Kong Mark6 or Taiwan Big Lotto. Then choose your AI partner from the 8 geniuses above to generate your lucky numbers. Good luck!`;
+    } else if (lang === 'tc') {
+      message = `歡迎來到六合彩及台灣大樂透。請選擇您喜歡的遊戲類型：香港六合彩或台灣大樂透。然後從上方 8 位天才中選擇您的 AI 夥伴來生成您的幸運號碼。祝您好運！`;
+    } else {
+      message = `欢迎来到六合彩及台湾大乐透。请选择您喜欢的游戏类型：香港六合彩或台湾大乐透。然后从上方 8 位天才中选择您的 AI 伙伴来生成您的幸运号码。祝您好运！`;
+    }
+
+    console.log('🔊 Welcome speech:', message);
+    console.log('🔊 Voice language:', voiceLang);
+
+    setIsWelcomeSpeechQueued(true);
+    setIsSpeaking(true);
+    
+    speakText(message, voiceLang as 'en-US' | 'zh-HK' | 'zh-CN');
+    
+    const checkSpeechEnd = setInterval(() => {
+      if (!window.speechSynthesis || !window.speechSynthesis.speaking) {
+        setIsSpeaking(false);
+        setIsWelcomeSpeechQueued(false);
+        clearInterval(checkSpeechEnd);
+      }
+    }, 500);
+  };
+
+  // ── Auto-play welcome speech when page loads (only once) ──
+  useEffect(() => {
+    // Only run once when component mounts and no report is showing
+    if (!hasWelcomeSpoken && !showReport) {
+      const timer = setTimeout(() => {
+        speakWelcome();
+        setHasWelcomeSpoken(true);
+      }, 1500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // ── Re-speak welcome when language changes (only if user manually changed) ──
+  // We use a ref to track the previous language to detect user-initiated changes
+  const prevLangRef = useRef(lang);
+  
+  useEffect(() => {
+    if (prevLangRef.current !== lang && hasWelcomeSpoken && !showReport && !isWelcomeSpeechQueued) {
+      // Language was changed by user
+      prevLangRef.current = lang;
+      // Cancel any existing speech and speak in new language
+      stopSpeaking();
+      setIsSpeaking(false);
+      setTimeout(() => {
+        speakWelcome();
+      }, 300);
+    } else {
+      prevLangRef.current = lang;
+    }
+  }, [lang]);
 
   // Generate prediction sets - SAME as Mark6FullReport
   const generatePredictionSets = (config: CharacterConfig): number[][] => {
@@ -313,6 +382,7 @@ const AIGames = () => {
     setPredictionSets([]);
     stopSpeaking();
     setIsSpeaking(false);
+    setIsWelcomeSpeechQueued(false);
   };
 
   const handleStartGame = () => {
@@ -390,13 +460,20 @@ const AIGames = () => {
     else uiLang = 'en';
     setLang(uiLang);
     
+    // Stop any ongoing speech
     stopSpeaking();
     setIsSpeaking(false);
+    setIsWelcomeSpeechQueued(false);
     
     // If there's a report showing, re-speak in new language
     if (showReport && activeChar && activeConfig && predictionSets.length > 0 && voiceEnabled) {
       setTimeout(() => {
         speakPrediction(activeChar, activeConfig, predictionSets);
+      }, 500);
+    } else if (!showReport && voiceEnabled) {
+      // Re-speak welcome in new language after a short delay
+      setTimeout(() => {
+        speakWelcome();
       }, 500);
     }
   };
@@ -405,8 +482,16 @@ const AIGames = () => {
     if (voiceEnabled) {
       stopSpeaking();
       setIsSpeaking(false);
+      setIsWelcomeSpeechQueued(false);
     }
     setVoiceEnabled(!voiceEnabled);
+    
+    // If enabling voice and no report is showing, speak welcome
+    if (!voiceEnabled && !showReport) {
+      setTimeout(() => {
+        speakWelcome();
+      }, 300);
+    }
   };
 
   return (
@@ -507,7 +592,13 @@ const AIGames = () => {
               {/* Lotto Type Selector */}
               <div className="flex items-center justify-center gap-3 mt-2">
                 <button
-                  onClick={() => setLottoType("hk")}
+                  onClick={() => {
+                    setLottoType("hk");
+                    // Re-speak welcome when lotto type changes
+                    if (voiceEnabled && !showReport && !isWelcomeSpeechQueued) {
+                      setTimeout(() => speakWelcome(), 300);
+                    }
+                  }}
                   className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
                     lottoType === "hk"
                       ? "bg-gradient-to-r from-[#d4af37] to-[#f5e6a0] text-[#1a3a2a] shadow-lg shadow-[#d4af37]/30"
@@ -517,7 +608,13 @@ const AIGames = () => {
                   {lang === "en" ? "HK Mark6" : lang === "tc" ? "香港六合彩" : "香港六合彩"}
                 </button>
                 <button
-                  onClick={() => setLottoType("tw")}
+                  onClick={() => {
+                    setLottoType("tw");
+                    // Re-speak welcome when lotto type changes
+                    if (voiceEnabled && !showReport && !isWelcomeSpeechQueued) {
+                      setTimeout(() => speakWelcome(), 300);
+                    }
+                  }}
                   className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
                     lottoType === "tw"
                       ? "bg-gradient-to-r from-[#d4af37] to-[#f5e6a0] text-[#1a3a2a] shadow-lg shadow-[#d4af37]/30"

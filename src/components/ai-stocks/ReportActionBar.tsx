@@ -1,7 +1,7 @@
-// src/components/ReportActionBar.tsx
+// src/components/ai-stocks/ReportActionBar.tsx
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Printer, Share2, ArrowLeft, Sparkles, Download, Star, FileDown, Loader2 } from "lucide-react";
+import { Printer, Share2, ArrowLeft, Sparkles, Download, Star, FileDown, Loader2, Facebook } from "lucide-react";
 import type { LangKey } from "@/contexts/LanguageContext";
 
 const labels = {
@@ -9,6 +9,7 @@ const labels = {
     pickAnother: "Select Another Stock",
     print: "Print",
     share: "Share",
+    shareFacebook: "Share on Facebook",
     save: "Save as Text",
     downloadPdf: "Download PDF",
     downloading: "Generating…",
@@ -19,6 +20,7 @@ const labels = {
     pickAnother: "選擇其他股票",
     print: "列印",
     share: "分享",
+    shareFacebook: "分享到 Facebook",
     save: "儲存為文字",
     downloadPdf: "下載 PDF",
     downloading: "生成中…",
@@ -29,6 +31,7 @@ const labels = {
     pickAnother: "选择其他股票",
     print: "打印",
     share: "分享",
+    shareFacebook: "分享到 Facebook",
     save: "保存为文本",
     downloadPdf: "下载 PDF",
     downloading: "生成中…",
@@ -167,11 +170,41 @@ const ReportActionBar = ({
     return parts.join('\n');
   };
 
-  const handleShare = () => {
+  // ── Share Handlers ──
+  
+  // WhatsApp Share
+  const handleWhatsAppShare = () => {
     const shareText = generateShareText();
     const encodedText = encodeURIComponent(shareText);
     const waUrl = `https://wa.me/?text=${encodedText}`;
     window.open(waUrl, "_blank");
+  };
+
+  // Facebook Share
+  const handleFacebookShare = () => {
+    const shareText = generateShareText();
+    const encodedText = encodeURIComponent(shareText);
+    const encodedUrl = encodeURIComponent(window.location.href);
+    
+    // Facebook sharer URL with quote parameter to include the share text
+    const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`;
+    
+    // Open in a popup window
+    const width = 626;
+    const height = 436;
+    const left = (window.innerWidth - width) / 2;
+    const top = (window.innerHeight - height) / 2;
+    
+    const popup = window.open(
+      fbUrl,
+      'facebook-share-dialog',
+      `width=${width},height=${height},left=${left},top=${top},toolbar=0,menubar=0,scrollbars=yes`
+    );
+    
+    if (!popup) {
+      // Fallback: open in new tab
+      window.open(fbUrl, '_blank');
+    }
   };
 
   const handleSave = () => {
@@ -288,8 +321,15 @@ const ReportActionBar = ({
         <button onClick={handlePrint} className={`${btnBase} bg-emerald-600 text-white hover:bg-emerald-500`}>
           <Printer size={16} /> {t.print}
         </button>
-        <button onClick={handleShare} className={`${btnBase} bg-emerald-600 text-white hover:bg-emerald-500`}>
+        
+        {/* WhatsApp Share Button */}
+        <button onClick={handleWhatsAppShare} className={`${btnBase} bg-[#25D366] text-white hover:bg-[#20BD5A]`}>
           <Share2 size={16} /> {t.share}
+        </button>
+        
+        {/* Facebook Share Button */}
+        <button onClick={handleFacebookShare} className={`${btnBase} bg-[#1877F2] text-white hover:bg-[#166FE5]`}>
+          <Facebook size={16} /> {t.shareFacebook}
         </button>
       </div>
 

@@ -3,10 +3,13 @@ import { Link } from "react-router-dom";
 import { useLanguage, type LangKey } from "@/contexts/LanguageContext";
 import type { CharacterModel, CharacterConfig } from "./mark6-data";
 import { getBallColor } from "./mark6-data";
-import { Printer, ArrowLeft, TrendingUp, MessageCircle, Shield, AlertTriangle, Settings2, Download, Facebook, Copy, Check, Share2 } from "lucide-react";
+import { Printer, ArrowLeft, TrendingUp, MessageCircle, Shield, AlertTriangle, Settings2, Download, Facebook, Copy, Check, Share2, Volume2, VolumeX } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer, Legend } from "recharts";
 import { toast } from "sonner";
+
+// ── Voice service imports ──
+import { speakText, stopSpeaking } from "@/services/voiceService";
 
 // ── IMPORT ALL IMAGES FIRST ──
 import dragonImg from "@/assets/dragon-master.png";
@@ -42,10 +45,12 @@ const labels = {
     warning: "⚠️ Gambling is harmful to health. This is purely an AI mathematical exercise. Please do not take it seriously or become addicted. We are not responsible for any consequences.",
     print: "Print Report",
     share: "Share",
-    shareWhatsApp: "WhatsApp",
-    shareFacebook: "Facebook",
+    shareWhatsApp: "Share",
+    shareFacebook: "Share",
+    shareLine: "Share",
     copyReport: "Copy Report",
     copied: "Copied!",
+    copyText: "Copy Text",
     saveAsText: "Save as Text",
     returnGame: "Return to Game",
     goStocks: "Go to AI Stocks Probability",
@@ -72,8 +77,12 @@ const labels = {
     saved: "Report saved as text file!",
     facebookShared: "Shared to Facebook!",
     whatsappShared: "Shared to WhatsApp!",
+    lineShared: "Shared to Line!",
     copiedToClipboard: "Copied to clipboard!",
     shareTitle: "Share Report",
+    voiceEnabled: "Voice enabled",
+    voiceDisabled: "Voice disabled",
+    speaking: "Speaking...",
   },
   tc: {
     prediction: " 的戰略預測",
@@ -86,10 +95,12 @@ const labels = {
     warning: "⚠️ 賭博有害健康。本網站純粹為 AI 數學練習。請勿認真對待或沉迷。我們不對任何後果負責。",
     print: "列印報告",
     share: "分享",
-    shareWhatsApp: "WhatsApp",
-    shareFacebook: "Facebook",
+    shareWhatsApp: "分享",
+    shareFacebook: "分享",
+    shareLine: "分享",
     copyReport: "複製報告",
     copied: "已複製！",
+    copyText: "複製文字",
     saveAsText: "儲存為文字",
     returnGame: "返回遊戲",
     goStocks: "前往 AI 股票概率",
@@ -116,8 +127,12 @@ const labels = {
     saved: "報告已儲存為文字檔案！",
     facebookShared: "已分享到 Facebook！",
     whatsappShared: "已分享到 WhatsApp！",
+    lineShared: "已分享到 Line！",
     copiedToClipboard: "已複製到剪貼板！",
     shareTitle: "分享報告",
+    voiceEnabled: "語音已啟用",
+    voiceDisabled: "語音已關閉",
+    speaking: "朗讀中...",
   },
   sc: {
     prediction: " 的战略预测",
@@ -130,10 +145,12 @@ const labels = {
     warning: "⚠️ 赌博有害健康。本网站纯粹为 AI 数学练习。请勿认真对待或沉迷。我们不对任何后果负责。",
     print: "打印报告",
     share: "分享",
-    shareWhatsApp: "WhatsApp",
-    shareFacebook: "Facebook",
+    shareWhatsApp: "分享",
+    shareFacebook: "分享",
+    shareLine: "分享",
     copyReport: "复制报告",
     copied: "已复制！",
+    copyText: "复制文字",
     saveAsText: "保存为文本",
     returnGame: "返回游戏",
     goStocks: "前往 AI 股票概率",
@@ -160,8 +177,12 @@ const labels = {
     saved: "报告已保存为文本文件！",
     facebookShared: "已分享到 Facebook！",
     whatsappShared: "已分享到 WhatsApp！",
+    lineShared: "已分享到 Line！",
     copiedToClipboard: "已复制到剪贴板！",
     shareTitle: "分享报告",
+    voiceEnabled: "语音已启用",
+    voiceDisabled: "语音已关闭",
+    speaking: "朗读中...",
   },
 };
 
@@ -372,6 +393,8 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
   const { lang, setLang } = useLanguage();
   const t = labels[lang];
   const [isCopied, setIsCopied] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   
   // SAFETY CHECK: If character or config is undefined, show error state
   if (!character || !config) {
@@ -398,6 +421,13 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
     );
   }
 
+  // Get voice language based on UI language
+  const getVoiceLang = (): string => {
+    if (lang === 'tc') return 'zh-HK';
+    if (lang === 'sc') return 'zh-CN';
+    return 'en-US';
+  };
+
   // Use initialPredictions if provided, otherwise generate new ones
   const [predictions, setPredictions] = useState<number[][]>(() => {
     if (initialPredictions && initialPredictions.length > 0) {
@@ -414,6 +444,57 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
     const timer = setTimeout(() => setShowDragon(false), 4500);
     return () => clearTimeout(timer);
   }, []);
+
+  // ── Speak Prediction Report ──
+  const speakPredictionReport = () => {
+    if (!voiceEnabled) return;
+    
+    stopSpeaking();
+    
+    const voiceLang = getVoiceLang();
+    const charName = character.name?.[lang] || character.name?.en || character.id;
+    const methodName = character.method?.[lang] || character.method?.en || '';
+    const firstSet = predictions[0] || [];
+    
+    let message = '';
+    if (lang === 'en') {
+      message = `${charName} prediction report. Using ${methodName}. The first set of predicted numbers are: ${firstSet.join(', ')}. Good luck to you!`;
+    } else if (lang === 'tc') {
+      message = `${charName} 預測報告。使用 ${methodName}。第一組預測號碼是：${firstSet.join('、')}。祝您好運！`;
+    } else {
+      message = `${charName} 预测报告。使用 ${methodName}。第一组预测号码是：${firstSet.join('、')}。祝您好运！`;
+    }
+
+    setIsSpeaking(true);
+    speakText(message, voiceLang as 'en-US' | 'zh-HK' | 'zh-CN');
+    
+    const checkSpeechEnd = setInterval(() => {
+      if (!window.speechSynthesis || !window.speechSynthesis.speaking) {
+        setIsSpeaking(false);
+        clearInterval(checkSpeechEnd);
+      }
+    }, 500);
+  };
+
+  // ── Speak when component mounts ──
+  useEffect(() => {
+    if (voiceEnabled) {
+      setTimeout(() => {
+        speakPredictionReport();
+      }, 800);
+    }
+  }, []);
+
+  // ── Re-speak when language changes ──
+  useEffect(() => {
+    if (voiceEnabled) {
+      stopSpeaking();
+      setIsSpeaking(false);
+      setTimeout(() => {
+        speakPredictionReport();
+      }, 500);
+    }
+  }, [lang]);
 
   // ── Share Text Generation ──
   const getShareText = () => {
@@ -473,17 +554,22 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
 
   // ── Share Handlers ──
   const handleFacebookShare = () => {
+    // Copy text to clipboard first
     const shareText = getShareText();
-    const encodedText = encodeURIComponent(shareText);
-    const url = `https://www.facebook.com/dialog/feed?display=popup&quote=${encodedText}&hashtag=%23DragonGPAI%23LuckyNumbers&app_id=your_facebook_app_id`;
-    
-    window.open(
-      url,
-      'facebook-share-dialog',
-      'width=626,height=436,toolbar=0,menubar=0,scrollbars=yes'
-    );
-    
-    toast.success(t.facebookShared || 'Shared to Facebook!');
+    navigator.clipboard.writeText(shareText).then(() => {
+      toast.success(t.copiedToClipboard || 'Copied to clipboard!');
+      
+      // Then open Facebook in a new tab
+      const encodedUrl = encodeURIComponent(window.location.href);
+      const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+      window.open(fbUrl, '_blank');
+    }).catch(() => {
+      // If clipboard fails, just open Facebook
+      const encodedUrl = encodeURIComponent(window.location.href);
+      const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+      window.open(fbUrl, '_blank');
+      toast.info('Please paste the copied text into your Facebook post (Ctrl+V / Cmd+V)');
+    });
   };
 
   const handleWhatsAppShare = () => {
@@ -495,6 +581,36 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
     toast.success(t.whatsappShared || 'Shared to WhatsApp!');
   };
 
+  // ── Line Share Handler ──
+  const handleLineShare = () => {
+    const shareText = getShareText();
+    const encodedText = encodeURIComponent(shareText);
+    
+    // Line supports both mobile app and web
+    // For mobile: line://msg/text/{text}
+    // For web: https://line.me/R/share?text={text}
+    const lineUrl = `https://line.me/R/share?text=${encodedText}`;
+    
+    // Try to open the Line app first (mobile)
+    const lineAppUrl = `line://msg/text/${encodedText}`;
+    
+    // Check if on mobile by checking if the user agent is mobile
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      // Try to open Line app first, fallback to web
+      const lineAppWindow = window.open(lineAppUrl, '_blank');
+      if (!lineAppWindow) {
+        window.open(lineUrl, '_blank');
+      }
+    } else {
+      // On desktop, use web version
+      window.open(lineUrl, '_blank');
+    }
+    
+    toast.success(t.lineShared || 'Shared to Line!');
+  };
+
   const handleCopyText = () => {
     const text = getShareText();
     navigator.clipboard.writeText(text).then(() => {
@@ -502,7 +618,16 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
       toast.success(t.copiedToClipboard || 'Copied to clipboard!');
       setTimeout(() => setIsCopied(false), 3000);
     }).catch(() => {
-      toast.error('Failed to copy');
+      // Fallback: copy using textarea
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setIsCopied(true);
+      toast.success(t.copiedToClipboard || 'Copied to clipboard!');
+      setTimeout(() => setIsCopied(false), 3000);
     });
   };
 
@@ -578,7 +703,24 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
   };
 
   const handleReturn = () => {
+    stopSpeaking();
+    setIsSpeaking(false);
     onReset();
+  };
+
+  const toggleVoice = () => {
+    if (voiceEnabled) {
+      stopSpeaking();
+      setIsSpeaking(false);
+    }
+    setVoiceEnabled(!voiceEnabled);
+    
+    // If enabling voice, speak the report
+    if (!voiceEnabled) {
+      setTimeout(() => {
+        speakPredictionReport();
+      }, 300);
+    }
   };
 
   const stars = 3;
@@ -610,25 +752,48 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
         )}
       </AnimatePresence>
 
-      {/* Language toggle — hidden in print */}
-      <div className="flex items-center justify-center gap-1 text-sm print-lang-toggle">
-        {langKeys.map((lk, i) => {
-          let displayLabel = '';
-          if (lk === 'en') displayLabel = 'English';
-          else if (lk === 'tc') displayLabel = '廣東話';
-          else if (lk === 'sc') displayLabel = '國語';
-          return (
-            <span key={lk} className="flex items-center gap-1">
-              {i > 0 && <span className="text-white/30 mx-1">|</span>}
-              <button
-                onClick={() => setLang(lk)}
-                className={`transition-colors ${lang === lk ? "text-amber-300 font-semibold [text-shadow:0_0_6px_rgba(245,158,11,0.4)]" : "text-white/50 hover:text-white/80"}`}
-              >
-                {displayLabel}
-              </button>
-            </span>
-          );
-        })}
+      {/* Language toggle and Voice toggle — hidden in print */}
+      <div className="flex items-center justify-center gap-2 text-sm print-lang-toggle">
+        <div className="flex items-center gap-1">
+          {langKeys.map((lk, i) => {
+            let displayLabel = '';
+            if (lk === 'en') displayLabel = 'English';
+            else if (lk === 'tc') displayLabel = '廣東話';
+            else if (lk === 'sc') displayLabel = '國語';
+            return (
+              <span key={lk} className="flex items-center gap-1">
+                {i > 0 && <span className="text-white/30 mx-1">|</span>}
+                <button
+                  onClick={() => setLang(lk)}
+                  className={`transition-colors ${lang === lk ? "text-amber-300 font-semibold [text-shadow:0_0_6px_rgba(245,158,11,0.4)]" : "text-white/50 hover:text-white/80"}`}
+                >
+                  {displayLabel}
+                </button>
+              </span>
+            );
+          })}
+        </div>
+        
+        {/* Voice Toggle Button */}
+        <button
+          onClick={toggleVoice}
+          className={`p-1.5 rounded-full transition-all ml-2 ${
+            voiceEnabled 
+              ? "bg-amber-500/20 border border-amber-400/30 text-amber-400 hover:bg-amber-500/30" 
+              : "bg-white/5 border border-white/10 text-white/30 hover:bg-white/10"
+          }`}
+          title={voiceEnabled ? t.voiceEnabled : t.voiceDisabled}
+        >
+          {voiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+        </button>
+        
+        {/* Speaking indicator */}
+        {isSpeaking && (
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] text-emerald-400 font-medium">{t.speaking}</span>
+          </div>
+        )}
       </div>
 
       {/* Header Card */}
@@ -835,7 +1000,7 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
           <Printer size={16} /> {t.print}
         </button>
         
-        {/* Copy Report Button */}
+        {/* Copy Text Button */}
         <button 
           onClick={handleCopyText} 
           className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
@@ -845,7 +1010,7 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
           }`}
         >
           {isCopied ? <Check size={16} /> : <Copy size={16} />}
-          {isCopied ? t.copied : t.copyReport}
+          {isCopied ? t.copied : t.copyText}
         </button>
         
         {/* WhatsApp Share Button */}
@@ -854,6 +1019,17 @@ const Mark6FullReport = ({ character, config, onReset, initialPredictions }: Pro
           className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-[#25D366] text-white hover:bg-[#1da851] transition-colors"
         >
           <MessageCircle size={16} /> {t.shareWhatsApp}
+        </button>
+        
+        {/* Line Share Button */}
+        <button 
+          onClick={handleLineShare} 
+          className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-[#06C755] text-white hover:bg-[#05a848] transition-colors"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" className="shrink-0">
+            <path d="M12 2C6.48 2 2 6.04 2 10.98c0 2.73 1.37 5.15 3.52 6.75.13.09.21.23.19.38l-.5 1.78c-.04.14.09.27.23.19l2.03-1.19c.12-.07.27-.07.39-.01.93.3 1.93.46 2.99.46 5.52 0 10-4.04 10-9 0-5.36-4.48-9-10-9z"/>
+          </svg>
+          {t.shareLine}
         </button>
         
         {/* Facebook Share Button */}
