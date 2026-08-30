@@ -1,16 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCredits } from "@/hooks/useCredits";
 import { supabase } from "@/integrations/supabase/client";
 import { useStockData } from "@/hooks/useStockData";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Star, Trash2, Loader2, Circle, 
-  ChevronRight, Zap, ArrowRight, Plus 
+  ChevronRight, Zap, ArrowRight, 
+  RefreshCw, Scan, ArrowUpDown, SortAsc, SortDesc,
+  Coins
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const labels = {
   en: {
@@ -39,6 +48,21 @@ const labels = {
     loadingData: "Loading stock data...",
     failedToFetch: "Failed to fetch stock data",
     pleaseTryAgain: "Please try again later",
+    refresh: "Refresh",
+    scanAll: "Scan All",
+    sortBy: "Sort By",
+    sortRSI: "RSI",
+    sortPrice: "Price",
+    sortSignal: "Signal",
+    asc: "Ascending",
+    desc: "Descending",
+    lastUpdated: "Last updated",
+    refreshSuccess: "Watchlist refreshed!",
+    scanComplete: "Analysis complete for all stocks!",
+    scanInProgress: "Scanning all stocks...",
+    credits: "Credits",
+    insufficientCredits: "Insufficient credits. Please top up.",
+    creditsDeducted: "Credits deducted",
   },
   tc: {
     title: "我的自選清單",
@@ -66,6 +90,21 @@ const labels = {
     loadingData: "載入股票數據中...",
     failedToFetch: "獲取股票數據失敗",
     pleaseTryAgain: "請稍後再試",
+    refresh: "刷新",
+    scanAll: "掃描所有股票",
+    sortBy: "排序方式",
+    sortRSI: "RSI",
+    sortPrice: "價格",
+    sortSignal: "信號",
+    asc: "升序",
+    desc: "降序",
+    lastUpdated: "最後更新",
+    refreshSuccess: "自選股已刷新！",
+    scanComplete: "所有股票分析完成！",
+    scanInProgress: "正在掃描所有股票...",
+    credits: "積分",
+    insufficientCredits: "積分不足。請充值。",
+    creditsDeducted: "已扣除積分",
   },
   sc: {
     title: "我的自选清单",
@@ -93,6 +132,21 @@ const labels = {
     loadingData: "载入股票数据中...",
     failedToFetch: "获取股票数据失败",
     pleaseTryAgain: "请稍后再试",
+    refresh: "刷新",
+    scanAll: "扫描所有股票",
+    sortBy: "排序方式",
+    sortRSI: "RSI",
+    sortPrice: "价格",
+    sortSignal: "信号",
+    asc: "升序",
+    desc: "降序",
+    lastUpdated: "最后更新",
+    refreshSuccess: "自选股已刷新！",
+    scanComplete: "所有股票分析完成！",
+    scanInProgress: "正在扫描所有股票...",
+    credits: "积分",
+    insufficientCredits: "积分不足。请充值。",
+    creditsDeducted: "已扣除积分",
   },
 };
 
@@ -125,10 +179,21 @@ const Watchlist = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const { fetchStockData } = useStockData();
+  const { credits, deductCredits, refreshCredits } = useCredits();
   const [items, setItems] = useState<WatchlistItem[]>([]);
   const [enhancedData, setEnhancedData] = useState<Record<string, EnhancedStockData>>({});
   const [loading, setLoading] = useState(true);
   const [fetchingData, setFetchingData] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [sortBy, setSortBy] = useState<'rsi' | 'price' | 'signal'>('signal');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  // Check if user has enough credits
+  const hasEnoughCredits = (required: number = 1) => {
+    return credits >= required;
+  };
 
   const fetchWatchlist = async () => {
     if (!user) { 
@@ -149,103 +214,17 @@ const Watchlist = () => {
       setLoading(false);
       
       if (watchlistData.length > 0) {
-        setFetchingData(true);
-        const results: Record<string, EnhancedStockData> = {};
-        
-        for (const item of watchlistData) {
-          try {
-            const liveData = await fetchStockData(item.symbol);
-            
-            if (liveData) {
-              let rsi = 50;
-              let rsiStatus = "Neutral";
-              
-              if (liveData.rsi !== null && liveData.rsi !== undefined && !isNaN(liveData.rsi)) {
-                rsi = Math.round(liveData.rsi * 10) / 10;
-              } else {
-                const change = liveData.change || 0;
-                rsi = 50 + (change > 0 ? Math.min(change * 2, 45) : Math.max(change * 2, -45));
-                rsi = Math.max(0, Math.min(100, Math.round(rsi * 10) / 10));
-              }
-
-              if (rsi > 70) rsiStatus = "Overbought";
-              else if (rsi < 30) rsiStatus = "Oversold";
-              else rsiStatus = "Neutral";
-
-              let macdStatus = "Neutral";
-              if (liveData.macdHistogram !== null && liveData.macdHistogram !== undefined) {
-                const hist = liveData.macdHistogram;
-                if (hist > 0.3) macdStatus = "Bullish";
-                else if (hist < -0.3) macdStatus = "Bearish";
-                else macdStatus = "Neutral";
-              } else {
-                const change = liveData.change || 0;
-                if (Math.abs(change) > 3) {
-                  macdStatus = change > 0 ? "Bullish" : "Bearish";
-                }
-              }
-
-              const probability = Math.min(95, Math.max(5, 50 + (50 - rsi) * 0.8));
-
-              let recommendation = "Hold";
-              if (rsi < 30) recommendation = "Buy";
-              else if (rsi > 70) recommendation = "Sell";
-              else if (rsi < 40 && (liveData.change || 0) > 0) recommendation = "Buy";
-              else if (rsi > 60 && (liveData.change || 0) < 0) recommendation = "Sell";
-
-              results[item.symbol] = {
-                symbol: liveData.symbol,
-                name: liveData.name || item.symbol,
-                price: liveData.price || 0,
-                priceChange: `${((liveData.change || 0) >= 0 ? '+' : '')}${(liveData.change || 0).toFixed(2)}%`,
-                priceUp: (liveData.change || 0) >= 0,
-                rsi,
-                rsiStatus,
-                macdStatus,
-                probability: Math.round(probability),
-                recommendation,
-                market: item.market || 'US',
-                loading: false,
-              };
-            } else {
-              results[item.symbol] = {
-                symbol: item.symbol,
-                name: item.symbol,
-                price: 0,
-                priceChange: '0.00%',
-                priceUp: false,
-                rsi: 50,
-                rsiStatus: 'Neutral',
-                macdStatus: 'Neutral',
-                probability: 50,
-                recommendation: 'Hold',
-                market: item.market || 'US',
-                loading: false,
-                error: 'No data available',
-              };
-            }
-          } catch (error) {
-            console.error(`Error fetching ${item.symbol}:`, error);
-            results[item.symbol] = {
-              symbol: item.symbol,
-              name: item.symbol,
-              price: 0,
-              priceChange: '0.00%',
-              priceUp: false,
-              rsi: 50,
-              rsiStatus: 'Neutral',
-              macdStatus: 'Neutral',
-              probability: 50,
-              recommendation: 'Hold',
-              market: item.market || 'US',
-              loading: false,
-              error: 'Failed to fetch',
-            };
-          }
+        // Check credits before fetching
+        if (!hasEnoughCredits()) {
+          toast({ 
+            title: t.insufficientCredits,
+            variant: "destructive" 
+          });
+          setFetchingData(false);
+          return;
         }
         
-        setEnhancedData(results);
-        setFetchingData(false);
+        await fetchAllStockData(watchlistData, false);
       }
     } catch (error) {
       console.error('Watchlist fetch error:', error);
@@ -258,9 +237,193 @@ const Watchlist = () => {
     }
   };
 
+  const fetchAllStockData = async (watchlistData: WatchlistItem[], showToast: boolean = true) => {
+    if (watchlistData.length === 0) return;
+    
+    // Check credits before fetching
+    if (!hasEnoughCredits()) {
+      toast({ 
+        title: t.insufficientCredits,
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    setIsRefreshing(true);
+    setFetchingData(true);
+    const results: Record<string, EnhancedStockData> = {};
+    
+    let creditsDeducted = false;
+    
+    for (const item of watchlistData) {
+      try {
+        // Deduct credits for each stock fetch (if not already deducted)
+        if (!creditsDeducted) {
+          const deducted = await deductCredits(1);
+          if (!deducted) {
+            toast({ 
+              title: t.insufficientCredits,
+              variant: "destructive" 
+            });
+            break;
+          }
+          creditsDeducted = true;
+          if (showToast) {
+            toast.success(`${t.creditsDeducted}: 1`);
+          }
+        }
+        
+        const liveData = await fetchStockData(item.symbol);
+        
+        if (liveData) {
+          let rsi = 50;
+          let rsiStatus = "Neutral";
+          
+          if (liveData.rsi !== null && liveData.rsi !== undefined && !isNaN(liveData.rsi)) {
+            rsi = Math.round(liveData.rsi * 10) / 10;
+          } else {
+            const change = liveData.change || 0;
+            rsi = 50 + (change > 0 ? Math.min(change * 2, 45) : Math.max(change * 2, -45));
+            rsi = Math.max(0, Math.min(100, Math.round(rsi * 10) / 10));
+          }
+
+          if (rsi > 70) rsiStatus = "Overbought";
+          else if (rsi < 30) rsiStatus = "Oversold";
+          else rsiStatus = "Neutral";
+
+          let macdStatus = "Neutral";
+          if (liveData.macdHistogram !== null && liveData.macdHistogram !== undefined) {
+            const hist = liveData.macdHistogram;
+            if (hist > 0.3) macdStatus = "Bullish";
+            else if (hist < -0.3) macdStatus = "Bearish";
+            else macdStatus = "Neutral";
+          } else {
+            const change = liveData.change || 0;
+            if (Math.abs(change) > 3) {
+              macdStatus = change > 0 ? "Bullish" : "Bearish";
+            }
+          }
+
+          const probability = Math.min(95, Math.max(5, 50 + (50 - rsi) * 0.8));
+
+          let recommendation = "Hold";
+          if (rsi < 30) recommendation = "Buy";
+          else if (rsi > 70) recommendation = "Sell";
+          else if (rsi < 40 && (liveData.change || 0) > 0) recommendation = "Buy";
+          else if (rsi > 60 && (liveData.change || 0) < 0) recommendation = "Sell";
+
+          results[item.symbol] = {
+            symbol: liveData.symbol,
+            name: liveData.name || item.symbol,
+            price: liveData.price || 0,
+            priceChange: `${((liveData.change || 0) >= 0 ? '+' : '')}${(liveData.change || 0).toFixed(2)}%`,
+            priceUp: (liveData.change || 0) >= 0,
+            rsi,
+            rsiStatus,
+            macdStatus,
+            probability: Math.round(probability),
+            recommendation,
+            market: item.market || 'US',
+            loading: false,
+          };
+        } else {
+          results[item.symbol] = {
+            symbol: item.symbol,
+            name: item.symbol,
+            price: 0,
+            priceChange: '0.00%',
+            priceUp: false,
+            rsi: 50,
+            rsiStatus: 'Neutral',
+            macdStatus: 'Neutral',
+            probability: 50,
+            recommendation: 'Hold',
+            market: item.market || 'US',
+            loading: false,
+            error: 'No data available',
+          };
+        }
+      } catch (error) {
+        console.error(`Error fetching ${item.symbol}:`, error);
+        results[item.symbol] = {
+          symbol: item.symbol,
+          name: item.symbol,
+          price: 0,
+          priceChange: '0.00%',
+          priceUp: false,
+          rsi: 50,
+          rsiStatus: 'Neutral',
+          macdStatus: 'Neutral',
+          probability: 50,
+          recommendation: 'Hold',
+          market: item.market || 'US',
+          loading: false,
+          error: 'Failed to fetch',
+        };
+      }
+    }
+    
+    setEnhancedData(results);
+    setLastUpdated(new Date());
+    setIsRefreshing(false);
+    setFetchingData(false);
+    
+    // Refresh credits display
+    await refreshCredits();
+    
+    if (showToast && creditsDeducted) {
+      // toast already shown
+    }
+  };
+
+  // Auto-refresh every 60 seconds (but only if credits available)
+  useEffect(() => {
+    if (items.length > 0 && hasEnoughCredits()) {
+      const interval = setInterval(() => {
+        fetchAllStockData(items, false);
+      }, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [items]);
+
   useEffect(() => { 
     fetchWatchlist(); 
   }, [user]);
+
+  const handleRefresh = async () => {
+    if (!hasEnoughCredits()) {
+      toast({ 
+        title: t.insufficientCredits,
+        variant: "destructive" 
+      });
+      return;
+    }
+    await fetchAllStockData(items, true);
+  };
+
+  const handleScanAll = async () => {
+    if (items.length === 0) return;
+    
+    if (!hasEnoughCredits(items.length)) {
+      toast({ 
+        title: `${t.insufficientCredits} (Need ${items.length} credits)`,
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    setIsScanning(true);
+    toast.info(t.scanInProgress);
+    
+    try {
+      await fetchAllStockData(items, false);
+      toast.success(t.scanComplete);
+    } catch (error) {
+      toast.error("Failed to scan stocks");
+    } finally {
+      setIsScanning(false);
+    }
+  };
 
   const handleRemove = async (id: string) => {
     try {
@@ -341,33 +504,159 @@ const Watchlist = () => {
     return market === "NASDAQ" || market === "NYSE" || market === "AMEX" || market === "US";
   };
 
+  // Sort watchlist items
+  const getSortedItems = () => {
+    const itemsWithData = items.filter(item => enhancedData[item.symbol]);
+    const itemsWithoutData = items.filter(item => !enhancedData[item.symbol]);
+    
+    const sortedWithData = [...itemsWithData].sort((a, b) => {
+      const aData = enhancedData[a.symbol];
+      const bData = enhancedData[b.symbol];
+      
+      if (!aData || !bData) return 0;
+      
+      const aSignal = getOverallSignal(aData.rsi || 50, aData.macdStatus || "Neutral");
+      const bSignal = getOverallSignal(bData.rsi || 50, bData.macdStatus || "Neutral");
+      
+      const signalOrder = { 
+        [t.strongBuy]: 5, [t.buy]: 4, [t.neutral]: 3, 
+        [t.caution]: 2, [t.sell]: 1, [t.strongSell]: 0 
+      };
+      
+      let comparison = 0;
+      switch (sortBy) {
+        case 'rsi':
+          comparison = (aData.rsi || 50) - (bData.rsi || 50);
+          break;
+        case 'price':
+          comparison = (aData.price || 0) - (bData.price || 0);
+          break;
+        case 'signal':
+          comparison = (signalOrder[aSignal.label as keyof typeof signalOrder] || 0) - 
+                       (signalOrder[bSignal.label as keyof typeof signalOrder] || 0);
+          break;
+        default:
+          comparison = 0;
+      }
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+    
+    return [...sortedWithData, ...itemsWithoutData];
+  };
+
+  const toggleSortOrder = () => {
+    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+  };
+
+  const sortedItems = getSortedItems();
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-background to-secondary/10">
       <Header />
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6">
-        {/* Header */}
+        {/* Header with Actions */}
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-primary/10 rounded-2xl blur-3xl -z-10" />
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl sm:text-5xl font-extrabold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent flex items-center gap-3">
-              <Star className="h-10 w-10 text-primary fill-primary/20" />
-              {t.title}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl sm:text-5xl font-extrabold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent flex items-center gap-3">
+                <Star className="h-10 w-10 text-primary fill-primary/20" />
+                {t.title}
+                {user && (
+                  <span className="text-base font-normal text-muted-foreground bg-secondary/50 px-4 py-1.5 rounded-full">
+                    {items.length}/10
+                  </span>
+                )}
+              </h1>
+              {/* Credits Display */}
               {user && (
-                <span className="text-base font-normal text-muted-foreground bg-secondary/50 px-4 py-1.5 rounded-full">
-                  {items.length}/10
-                </span>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
+                  <Coins size={16} className="text-primary" />
+                  <span className="text-sm font-bold text-primary">{credits}</span>
+                  <span className="text-xs text-muted-foreground">{t.credits}</span>
+                </div>
               )}
-            </h1>
-            {user && items.length > 0 && (
-              <Link
-                to="/ai-stocks"
-                className="text-sm sm:text-base text-primary hover:text-primary/80 font-medium flex items-center gap-2 bg-primary/10 px-4 py-2.5 rounded-full hover:bg-primary/20 transition-all"
+            </div>
+            
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Last Updated */}
+              <span className="text-xs text-muted-foreground hidden sm:inline">
+                {t.lastUpdated}: {lastUpdated.toLocaleTimeString()}
+              </span>
+              
+              {/* Refresh Button - Emerald Green */}
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing || !hasEnoughCredits()}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Zap className="h-4 w-4" />
-                {t.goAnalyze}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            )}
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                {t.refresh}
+              </button>
+              
+              {/* Scan All Button - Purple */}
+              <button
+                onClick={handleScanAll}
+                disabled={isScanning || !hasEnoughCredits(items.length || 1)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Scan className={`w-4 h-4 ${isScanning ? 'animate-pulse' : ''}`} />
+                {isScanning ? t.scanInProgress : t.scanAll}
+              </button>
+              
+              {/* Sort Dropdown - Blue */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors">
+                    <ArrowUpDown className="w-4 h-4" />
+                    {t.sortBy}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="bg-card border-border text-foreground">
+                  <DropdownMenuItem 
+                    onClick={() => setSortBy('rsi')}
+                    className="cursor-pointer hover:bg-secondary"
+                  >
+                    {t.sortRSI}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setSortBy('price')}
+                    className="cursor-pointer hover:bg-secondary"
+                  >
+                    {t.sortPrice}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setSortBy('signal')}
+                    className="cursor-pointer hover:bg-secondary"
+                  >
+                    {t.sortSignal}
+                  </DropdownMenuItem>
+                  <div className="border-t border-border my-1" />
+                  <DropdownMenuItem 
+                    onClick={toggleSortOrder}
+                    className="cursor-pointer hover:bg-secondary"
+                  >
+                    {sortOrder === 'asc' ? (
+                      <><SortAsc className="w-4 h-4 mr-2" /> {t.asc}</>
+                    ) : (
+                      <><SortDesc className="w-4 h-4 mr-2" /> {t.desc}</>
+                    )}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
+              {/* Go to AI Stocks Link */}
+              {user && items.length > 0 && (
+                <Link
+                  to="/ai-stocks"
+                  className="text-sm sm:text-base text-primary hover:text-primary/80 font-medium flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-full hover:bg-primary/20 transition-all"
+                >
+                  <Zap className="h-4 w-4" />
+                  {t.goAnalyze}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              )}
+            </div>
           </div>
         </div>
 
@@ -399,7 +688,7 @@ const Watchlist = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Legend - Larger text with fixed translations */}
+            {/* Legend */}
             <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm sm:text-base text-muted-foreground bg-card/50 backdrop-blur-sm px-5 py-4 rounded-xl border border-border/50">
               <div className="flex items-center gap-2">
                 <Circle size={12} className="text-emerald-400 fill-current" />
@@ -421,13 +710,12 @@ const Watchlist = () => {
               </div>
             </div>
 
-            {/* Compact 1-row cards - Larger fonts with enhanced hover */}
-            <div className="max-h-[calc(100vh-300px)] overflow-y-auto pr-1 space-y-3 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
-              {items.map((item) => {
+            {/* Compact 1-row cards */}
+            <div className="max-h-[calc(100vh-350px)] overflow-y-auto pr-1 space-y-3 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
+              {sortedItems.map((item) => {
                 const stockData = enhancedData[item.symbol];
                 const isLoading = fetchingData && !stockData;
                 
-                // Loading skeleton with shimmer
                 if (isLoading) {
                   return (
                     <div
@@ -468,7 +756,6 @@ const Watchlist = () => {
                     key={item.id}
                     className={`relative group rounded-xl border bg-gradient-to-br from-card to-secondary/20 hover:from-card/80 hover:to-secondary/30 transition-all duration-300 p-4 sm:p-5 ${rsiStatus.border} border hover:shadow-lg hover:scale-[1.01]`}
                   >
-                    {/* Remove button */}
                     <button
                       onClick={() => handleRemove(item.id)}
                       className="absolute top-3 right-3 text-muted-foreground/40 hover:text-red-400 transition-colors z-10 opacity-0 group-hover:opacity-100"
@@ -477,9 +764,7 @@ const Watchlist = () => {
                       <Trash2 size={18} />
                     </button>
 
-                    {/* Single Row - Larger text with added date tooltip */}
                     <div className="flex items-center justify-between gap-3 pr-7 flex-wrap lg:flex-nowrap">
-                      {/* Symbol + Market + Name */}
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${rsiStatus.bg}`}>
                           <span 
@@ -495,7 +780,6 @@ const Watchlist = () => {
                         </span>
                       </div>
 
-                      {/* Price + Change */}
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-base sm:text-lg font-bold">
                           {isUS ? `$${stockData.price.toFixed(2)}` : `NT$${stockData.price.toFixed(2)}`}
@@ -505,7 +789,6 @@ const Watchlist = () => {
                         </span>
                       </div>
 
-                      {/* RSI */}
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-xs uppercase text-muted-foreground font-medium hidden sm:inline">RSI</span>
                         <span className={`text-base font-bold ${rsiStatus.color} ${rsiStatus.color.includes('emerald') ? 'animate-pulse' : ''}`}>
@@ -516,7 +799,6 @@ const Watchlist = () => {
                         </span>
                       </div>
 
-                      {/* MACD */}
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-xs uppercase text-muted-foreground font-medium hidden sm:inline">MACD</span>
                         <span className={`text-base font-bold ${macdStatus.color}`}>
@@ -527,14 +809,12 @@ const Watchlist = () => {
                         </span>
                       </div>
 
-                      {/* Signal Badge */}
                       <div className={`px-3 py-1.5 rounded-full ${signal.bg} shrink-0`}>
                         <span className={`text-sm font-bold ${signal.color}`}>
                           {signal.label}
                         </span>
                       </div>
 
-                      {/* Analyze Button */}
                       <Link
                         to={`/ai-stocks?symbol=${stockData.symbol}&market=${item.market || 'us'}`}
                         className="text-sm font-medium px-4 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/10 hover:border-primary/20 transition-all text-primary/80 hover:text-primary whitespace-nowrap shrink-0"

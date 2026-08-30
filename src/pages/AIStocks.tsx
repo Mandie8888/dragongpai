@@ -10,7 +10,7 @@ import { Search, Star, Shield, Coins, Loader2, Volume2, VolumeX, Mic, Play, Paus
 import yearOfHorse from "@/assets/year-of-horse.png";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-
+import { useDeductCredits } from "@/hooks/useDeductCredits";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
 import MarketIndices from "@/components/ai-stocks/MarketIndices";
 import StockReport, { type ReportData } from "@/components/ai-stocks/StockReport";
@@ -19,6 +19,7 @@ import { useStockData, type LiveStockData } from "@/hooks/useStockData";
 import { speakText, stopSpeaking } from "@/services/voiceService";
 import { detectStock } from "@/lib/stockDetector";
 
+const { deductCredits, isDeducting } = useDeductCredits();
 /* ── Markets ─────────────────────────────────── */
 const markets = [
   { key: "us", flag: "🇺🇸", label: { en: "US Market", tc: "美國市場", sc: "美国市场" } },
@@ -720,38 +721,49 @@ const AIStocks = () => {
   };
 
   const handleLoadReport = async (ticker: string) => {
-    setActiveTicker(ticker);
-    setIsLoadingQuote(true);
+  setActiveTicker(ticker);
+  setIsLoadingQuote(true);
 
-    let liveData: LiveStockData | null = null;
-    try {
-      liveData = await fetchStockData(ticker);
-      if (liveData) {
-        setCachedLiveData(liveData);
-        const reportData = generateReportFromLiveData(ticker, lang, liveData);
-        setReport(reportData);
-        setSearchParams({ symbol: ticker }, { replace: true });
+  // Deduct credits first
+  const deducted = await deductCredits(1);
+  if (!deducted) {
+    setIsLoadingQuote(false);
+    return;
+  }
 
-        if (user) {
-          await supabase.from("analysis_history").insert({
-            user_id: user.id,
-            report_type: "stock",
-            model_used: "AI Stock Engine",
-            symbol: ticker,
-            status: "completed",
-            report_data: reportData as any,
-          });
-        }
-      } else {
-        toast({ title: "Failed to fetch stock data", variant: "destructive" });
+  let liveData: LiveStockData | null = null;
+  try {
+    liveData = await fetchStockData(ticker);
+    if (liveData) {
+      setCachedLiveData(liveData);
+      const reportData = generateReportFromLiveData(ticker, lang, liveData);
+      setReport(reportData);
+      setSearchParams({ symbol: ticker }, { replace: true });
+
+      // Refresh credits count after deduction
+      // If you have a refetch function in useCredits, call it here
+      // For example: refetchCredits();
+
+      if (user) {
+        await supabase.from("analysis_history").insert({
+          user_id: user.id,
+          report_type: "stock",
+          model_used: "AI Stock Engine",
+          symbol: ticker,
+          status: "completed",
+          report_data: reportData as any,
+        });
       }
-    } catch (err) {
-      console.warn("Live data fetch failed:", err);
+    } else {
       toast({ title: "Failed to fetch stock data", variant: "destructive" });
-    } finally {
-      setIsLoadingQuote(false);
     }
-  };
+  } catch (err) {
+    console.warn("Live data fetch failed:", err);
+    toast({ title: "Failed to fetch stock data", variant: "destructive" });
+  } finally {
+    setIsLoadingQuote(false);
+  }
+};
 
   const handleAddWatchlist = async () => {
     if (!user || !report) return;
