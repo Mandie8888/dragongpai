@@ -10,7 +10,6 @@ import { Search, Star, Shield, Coins, Loader2, Volume2, VolumeX, Mic, Play, Paus
 import yearOfHorse from "@/assets/year-of-horse.png";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useDeductCredits } from "@/hooks/useDeductCredits";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
 import MarketIndices from "@/components/ai-stocks/MarketIndices";
 import StockReport, { type ReportData } from "@/components/ai-stocks/StockReport";
@@ -19,7 +18,6 @@ import { useStockData, type LiveStockData } from "@/hooks/useStockData";
 import { speakText, stopSpeaking } from "@/services/voiceService";
 import { detectStock } from "@/lib/stockDetector";
 
-const { deductCredits, isDeducting } = useDeductCredits();
 /* ── Markets ─────────────────────────────────── */
 const markets = [
   { key: "us", flag: "🇺🇸", label: { en: "US Market", tc: "美國市場", sc: "美国市场" } },
@@ -500,7 +498,7 @@ const AIStocks = () => {
   const { lang, setLang } = useLanguage();
   const t = labels[lang];
   const { user, subscription } = useAuth();
-  const { credits, loading: creditsLoading } = useCredits();
+  const { credits, loading: creditsLoading, refreshCredits, deductCredits } = useCredits();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -720,29 +718,31 @@ const AIStocks = () => {
     handleLoadReport(ticker);
   };
 
-  const handleLoadReport = async (ticker: string) => {
+ // Replace the handleLoadReport function (around line 680-720)
+const handleLoadReport = async (ticker: string) => {
   setActiveTicker(ticker);
   setIsLoadingQuote(true);
 
-  // Deduct credits first
+  // 1. Deduct credits
   const deducted = await deductCredits(1);
   if (!deducted) {
     setIsLoadingQuote(false);
     return;
   }
 
-  let liveData: LiveStockData | null = null;
+  // 2. Safely refresh credits after deduction
+  if (typeof refreshCredits === "function") {
+    await refreshCredits();
+  }
+
+  // 3. Fetch live data & build report
   try {
-    liveData = await fetchStockData(ticker);
+    const liveData = await fetchStockData(ticker);
     if (liveData) {
       setCachedLiveData(liveData);
       const reportData = generateReportFromLiveData(ticker, lang, liveData);
       setReport(reportData);
       setSearchParams({ symbol: ticker }, { replace: true });
-
-      // Refresh credits count after deduction
-      // If you have a refetch function in useCredits, call it here
-      // For example: refetchCredits();
 
       if (user) {
         await supabase.from("analysis_history").insert({

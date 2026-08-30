@@ -154,7 +154,7 @@ interface WatchlistItem {
   id: string;
   symbol: string;
   market: string;
-  added_at: string;
+  added_at?: string;
 }
 
 interface EnhancedStockData {
@@ -179,7 +179,7 @@ const Watchlist = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const { fetchStockData } = useStockData();
-  const { credits, deductCredits, refreshCredits } = useCredits();
+  const { credits, loading: creditsLoading, deductCredits, refreshCredits } = useCredits();
   const [items, setItems] = useState<WatchlistItem[]>([]);
   const [enhancedData, setEnhancedData] = useState<Record<string, EnhancedStockData>>({});
   const [loading, setLoading] = useState(true);
@@ -189,6 +189,7 @@ const Watchlist = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [sortBy, setSortBy] = useState<'rsi' | 'price' | 'signal'>('signal');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [creditsChecked, setCreditsChecked] = useState(false);
 
   // Check if user has enough credits
   const hasEnoughCredits = (required: number = 1) => {
@@ -204,8 +205,7 @@ const Watchlist = () => {
     try {
       const { data, error } = await supabase
         .from("user_watchlists")
-        .select("*")
-        .order("added_at", { ascending: false });
+        .select("*");
       
       if (error) throw error;
       
@@ -214,16 +214,6 @@ const Watchlist = () => {
       setLoading(false);
       
       if (watchlistData.length > 0) {
-        // Check credits before fetching
-        if (!hasEnoughCredits()) {
-          toast({ 
-            title: t.insufficientCredits,
-            variant: "destructive" 
-          });
-          setFetchingData(false);
-          return;
-        }
-        
         await fetchAllStockData(watchlistData, false);
       }
     } catch (error) {
@@ -240,10 +230,11 @@ const Watchlist = () => {
   const fetchAllStockData = async (watchlistData: WatchlistItem[], showToast: boolean = true) => {
     if (watchlistData.length === 0) return;
     
-    // Check credits before fetching
+    // Check if user has credits
     if (!hasEnoughCredits()) {
       toast({ 
         title: t.insufficientCredits,
+        description: `You have ${credits} credits. Need 1 credit to refresh.`,
         variant: "destructive" 
       });
       return;
@@ -253,26 +244,26 @@ const Watchlist = () => {
     setFetchingData(true);
     const results: Record<string, EnhancedStockData> = {};
     
-    let creditsDeducted = false;
+    // Deduct 1 credit for the refresh
+    const deducted = await deductCredits(1);
+    if (!deducted) {
+      toast({ 
+        title: t.insufficientCredits,
+        description: `Failed to deduct credit. You have ${credits} credits.`,
+        variant: "destructive" 
+      });
+      setIsRefreshing(false);
+      setFetchingData(false);
+      return;
+    }
     
+    if (showToast) {
+      toast({ title: `${t.creditsDeducted}: 1 for ${watchlistData.length} stocks` });
+    }
+    
+    // Fetch all stocks
     for (const item of watchlistData) {
       try {
-        // Deduct credits for each stock fetch (if not already deducted)
-        if (!creditsDeducted) {
-          const deducted = await deductCredits(1);
-          if (!deducted) {
-            toast({ 
-              title: t.insufficientCredits,
-              variant: "destructive" 
-            });
-            break;
-          }
-          creditsDeducted = true;
-          if (showToast) {
-            toast.success(`${t.creditsDeducted}: 1`);
-          }
-        }
-        
         const liveData = await fetchStockData(item.symbol);
         
         if (liveData) {
@@ -370,21 +361,17 @@ const Watchlist = () => {
     
     // Refresh credits display
     await refreshCredits();
-    
-    if (showToast && creditsDeducted) {
-      // toast already shown
-    }
   };
 
-  // Auto-refresh every 60 seconds (but only if credits available)
-  useEffect(() => {
-    if (items.length > 0 && hasEnoughCredits()) {
-      const interval = setInterval(() => {
-        fetchAllStockData(items, false);
-      }, 60000);
-      return () => clearInterval(interval);
-    }
-  }, [items]);
+  // Auto-refresh every 60 seconds (disabled to save credits)
+  // useEffect(() => {
+  //   if (items.length > 0 && hasEnoughCredits()) {
+  //     const interval = setInterval(() => {
+  //       fetchAllStockData(items, false);
+  //     }, 60000);
+  //     return () => clearInterval(interval);
+  //   }
+  // }, [items]);
 
   useEffect(() => { 
     fetchWatchlist(); 
@@ -394,6 +381,7 @@ const Watchlist = () => {
     if (!hasEnoughCredits()) {
       toast({ 
         title: t.insufficientCredits,
+        description: `You have ${credits} credits. Need 1 credit to refresh.`,
         variant: "destructive" 
       });
       return;
@@ -404,22 +392,44 @@ const Watchlist = () => {
   const handleScanAll = async () => {
     if (items.length === 0) return;
     
-    if (!hasEnoughCredits(items.length)) {
+    // For scan all, we deduct 1 credit per stock
+    const neededCredits = items.length;
+    if (!hasEnoughCredits(neededCredits)) {
       toast({ 
-        title: `${t.insufficientCredits} (Need ${items.length} credits)`,
+        title: t.insufficientCredits,
+        description: `You have ${credits} credits. Need ${neededCredits} credits to scan all.`,
         variant: "destructive" 
       });
       return;
     }
     
     setIsScanning(true);
-    toast.info(t.scanInProgress);
+    toast({ title: t.scanInProgress });
     
     try {
+      // Deduct credits for each stock
+      let allDeducted = true;
+      for (let i = 0; i < items.length; i++) {
+        const deducted = await deductCredits(1);
+        if (!deducted) {
+          allDeducted = false;
+          break;
+        }
+      }
+      
+      if (!allDeducted) {
+        toast({ 
+          title: t.insufficientCredits,
+          variant: "destructive" 
+        });
+        setIsScanning(false);
+        return;
+      }
+      
       await fetchAllStockData(items, false);
-      toast.success(t.scanComplete);
+      toast({ title: t.scanComplete });
     } catch (error) {
-      toast.error("Failed to scan stocks");
+      toast({ title: "Failed to scan stocks", variant: "destructive" });
     } finally {
       setIsScanning(false);
     }
@@ -769,7 +779,7 @@ const Watchlist = () => {
                         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${rsiStatus.bg}`}>
                           <span 
                             className="text-base sm:text-lg font-bold truncate"
-                            title={`Added: ${new Date(item.added_at).toLocaleDateString()}`}
+                            title={`Added: ${item.added_at ? new Date(item.added_at).toLocaleDateString() : 'N/A'}`}
                           >
                             {stockData.symbol}
                           </span>
