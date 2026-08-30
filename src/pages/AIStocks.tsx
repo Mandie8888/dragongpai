@@ -498,7 +498,7 @@ const AIStocks = () => {
   const { lang, setLang } = useLanguage();
   const t = labels[lang];
   const { user, subscription } = useAuth();
-  const { credits, loading: creditsLoading, refreshCredits, deductCredits } = useCredits();
+  const { credits, loading: creditsLoading, deductCredits } = useCredits();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -723,19 +723,28 @@ const handleLoadReport = async (ticker: string) => {
   setActiveTicker(ticker);
   setIsLoadingQuote(true);
 
-  // 1. Deduct credits
-  const deducted = await deductCredits(1);
-  if (!deducted) {
-    setIsLoadingQuote(false);
-    return;
+  // 1. Deduct credits using the same method as AIGames
+  if (!subscription.subscribed && user) {
+    const { error } = await supabase.rpc("deduct_credit", { p_report_type: "stock" });
+    if (error) {
+      console.error("Credit deduction failed:", error.message);
+      toast({ 
+        title: "Error", 
+        description: "Failed to deduct credit. Please try again.", 
+        variant: "destructive" 
+      });
+      setIsLoadingQuote(false);
+      return;
+    }
+    
+    // Refresh credits after a short delay to ensure the RPC is fully committed
+    // This prevents the race condition where the old balance is fetched
+    setTimeout(async () => {
+      await refreshCredits();
+    }, 300);
   }
 
-  // 2. Safely refresh credits after deduction
-  if (typeof refreshCredits === "function") {
-    await refreshCredits();
-  }
-
-  // 3. Fetch live data & build report
+  // 2. Fetch live data & build report
   try {
     const liveData = await fetchStockData(ticker);
     if (liveData) {
