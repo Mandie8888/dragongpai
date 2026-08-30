@@ -61,8 +61,6 @@ const labels = {
     scanComplete: "Analysis complete for all stocks!",
     scanInProgress: "Scanning all stocks...",
     credits: "Credits",
-    insufficientCredits: "Insufficient credits. Please top up.",
-    creditsDeducted: "Credits deducted",
   },
   tc: {
     title: "我的自選清單",
@@ -103,8 +101,6 @@ const labels = {
     scanComplete: "所有股票分析完成！",
     scanInProgress: "正在掃描所有股票...",
     credits: "積分",
-    insufficientCredits: "積分不足。請充值。",
-    creditsDeducted: "已扣除積分",
   },
   sc: {
     title: "我的自选清单",
@@ -145,8 +141,6 @@ const labels = {
     scanComplete: "所有股票分析完成！",
     scanInProgress: "正在扫描所有股票...",
     credits: "积分",
-    insufficientCredits: "积分不足。请充值。",
-    creditsDeducted: "已扣除积分",
   },
 };
 
@@ -154,7 +148,7 @@ interface WatchlistItem {
   id: string;
   symbol: string;
   market: string;
-  added_at: string;
+  added_at?: string;
 }
 
 interface EnhancedStockData {
@@ -179,21 +173,15 @@ const Watchlist = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const { fetchStockData } = useStockData();
-  const { credits, deductCredits, refreshCredits } = useCredits();
+  const { credits, loading: creditsLoading } = useCredits();
   const [items, setItems] = useState<WatchlistItem[]>([]);
   const [enhancedData, setEnhancedData] = useState<Record<string, EnhancedStockData>>({});
   const [loading, setLoading] = useState(true);
-  const [fetchingData, setFetchingData] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [sortBy, setSortBy] = useState<'rsi' | 'price' | 'signal'>('signal');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-
-  // Check if user has enough credits
-  const hasEnoughCredits = (required: number = 1) => {
-    return credits >= required;
-  };
 
   const fetchWatchlist = async () => {
     if (!user) { 
@@ -204,8 +192,7 @@ const Watchlist = () => {
     try {
       const { data, error } = await supabase
         .from("user_watchlists")
-        .select("*")
-        .order("added_at", { ascending: false });
+        .select("*");
       
       if (error) throw error;
       
@@ -214,17 +201,7 @@ const Watchlist = () => {
       setLoading(false);
       
       if (watchlistData.length > 0) {
-        // Check credits before fetching
-        if (!hasEnoughCredits()) {
-          toast({ 
-            title: t.insufficientCredits,
-            variant: "destructive" 
-          });
-          setFetchingData(false);
-          return;
-        }
-        
-        await fetchAllStockData(watchlistData, false);
+        await fetchAllStockData(watchlistData);
       }
     } catch (error) {
       console.error('Watchlist fetch error:', error);
@@ -237,42 +214,15 @@ const Watchlist = () => {
     }
   };
 
-  const fetchAllStockData = async (watchlistData: WatchlistItem[], showToast: boolean = true) => {
+  const fetchAllStockData = async (watchlistData: WatchlistItem[]) => {
     if (watchlistData.length === 0) return;
     
-    // Check credits before fetching
-    if (!hasEnoughCredits()) {
-      toast({ 
-        title: t.insufficientCredits,
-        variant: "destructive" 
-      });
-      return;
-    }
-    
     setIsRefreshing(true);
-    setFetchingData(true);
     const results: Record<string, EnhancedStockData> = {};
     
-    let creditsDeducted = false;
-    
+    // Fetch all stocks without credit check
     for (const item of watchlistData) {
       try {
-        // Deduct credits for each stock fetch (if not already deducted)
-        if (!creditsDeducted) {
-          const deducted = await deductCredits(1);
-          if (!deducted) {
-            toast({ 
-              title: t.insufficientCredits,
-              variant: "destructive" 
-            });
-            break;
-          }
-          creditsDeducted = true;
-          if (showToast) {
-            toast.success(`${t.creditsDeducted}: 1`);
-          }
-        }
-        
         const liveData = await fetchStockData(item.symbol);
         
         if (liveData) {
@@ -366,60 +316,27 @@ const Watchlist = () => {
     setEnhancedData(results);
     setLastUpdated(new Date());
     setIsRefreshing(false);
-    setFetchingData(false);
-    
-    // Refresh credits display
-    await refreshCredits();
-    
-    if (showToast && creditsDeducted) {
-      // toast already shown
-    }
   };
-
-  // Auto-refresh every 60 seconds (but only if credits available)
-  useEffect(() => {
-    if (items.length > 0 && hasEnoughCredits()) {
-      const interval = setInterval(() => {
-        fetchAllStockData(items, false);
-      }, 60000);
-      return () => clearInterval(interval);
-    }
-  }, [items]);
 
   useEffect(() => { 
     fetchWatchlist(); 
   }, [user]);
 
   const handleRefresh = async () => {
-    if (!hasEnoughCredits()) {
-      toast({ 
-        title: t.insufficientCredits,
-        variant: "destructive" 
-      });
-      return;
-    }
-    await fetchAllStockData(items, true);
+    await fetchAllStockData(items);
   };
 
   const handleScanAll = async () => {
     if (items.length === 0) return;
     
-    if (!hasEnoughCredits(items.length)) {
-      toast({ 
-        title: `${t.insufficientCredits} (Need ${items.length} credits)`,
-        variant: "destructive" 
-      });
-      return;
-    }
-    
     setIsScanning(true);
-    toast.info(t.scanInProgress);
+    toast({ title: t.scanInProgress });
     
     try {
-      await fetchAllStockData(items, false);
-      toast.success(t.scanComplete);
+      await fetchAllStockData(items);
+      toast({ title: t.scanComplete });
     } catch (error) {
-      toast.error("Failed to scan stocks");
+      toast({ title: "Failed to scan stocks", variant: "destructive" });
     } finally {
       setIsScanning(false);
     }
@@ -504,7 +421,6 @@ const Watchlist = () => {
     return market === "NASDAQ" || market === "NYSE" || market === "AMEX" || market === "US";
   };
 
-  // Sort watchlist items
   const getSortedItems = () => {
     const itemsWithData = items.filter(item => enhancedData[item.symbol]);
     const itemsWithoutData = items.filter(item => !enhancedData[item.symbol]);
@@ -554,7 +470,6 @@ const Watchlist = () => {
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-background to-secondary/10">
       <Header />
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6">
-        {/* Header with Actions */}
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-primary/10 rounded-2xl blur-3xl -z-10" />
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -568,43 +483,38 @@ const Watchlist = () => {
                   </span>
                 )}
               </h1>
-              {/* Credits Display */}
               {user && (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
                   <Coins size={16} className="text-primary" />
-                  <span className="text-sm font-bold text-primary">{credits}</span>
+                  <span className="text-sm font-bold text-primary">{creditsLoading ? "..." : credits}</span>
                   <span className="text-xs text-muted-foreground">{t.credits}</span>
                 </div>
               )}
             </div>
             
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Last Updated */}
               <span className="text-xs text-muted-foreground hidden sm:inline">
                 {t.lastUpdated}: {lastUpdated.toLocaleTimeString()}
               </span>
               
-              {/* Refresh Button - Emerald Green */}
               <button
                 onClick={handleRefresh}
-                disabled={isRefreshing || !hasEnoughCredits()}
+                disabled={isRefreshing}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 {t.refresh}
               </button>
               
-              {/* Scan All Button - Purple */}
               <button
                 onClick={handleScanAll}
-                disabled={isScanning || !hasEnoughCredits(items.length || 1)}
+                disabled={isScanning}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Scan className={`w-4 h-4 ${isScanning ? 'animate-pulse' : ''}`} />
                 {isScanning ? t.scanInProgress : t.scanAll}
               </button>
               
-              {/* Sort Dropdown - Blue */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors">
@@ -645,7 +555,6 @@ const Watchlist = () => {
                 </DropdownMenuContent>
               </DropdownMenu>
               
-              {/* Go to AI Stocks Link */}
               {user && items.length > 0 && (
                 <Link
                   to="/ai-stocks"
@@ -688,7 +597,6 @@ const Watchlist = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Legend */}
             <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm sm:text-base text-muted-foreground bg-card/50 backdrop-blur-sm px-5 py-4 rounded-xl border border-border/50">
               <div className="flex items-center gap-2">
                 <Circle size={12} className="text-emerald-400 fill-current" />
@@ -710,27 +618,10 @@ const Watchlist = () => {
               </div>
             </div>
 
-            {/* Compact 1-row cards */}
             <div className="max-h-[calc(100vh-350px)] overflow-y-auto pr-1 space-y-3 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
               {sortedItems.map((item) => {
                 const stockData = enhancedData[item.symbol];
-                const isLoading = fetchingData && !stockData;
                 
-                if (isLoading) {
-                  return (
-                    <div
-                      key={item.id}
-                      className="rounded-xl border border-border/50 bg-card p-4 sm:p-5 flex items-center justify-between animate-pulse"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="h-8 w-32 bg-gradient-to-r from-secondary/50 via-secondary/30 to-secondary/50 rounded-full animate-shimmer"></div>
-                        <div className="h-6 w-48 bg-gradient-to-r from-secondary/50 via-secondary/30 to-secondary/50 rounded animate-shimmer"></div>
-                      </div>
-                      <div className="h-6 w-28 bg-gradient-to-r from-secondary/50 via-secondary/30 to-secondary/50 rounded animate-shimmer"></div>
-                    </div>
-                  );
-                }
-
                 if (!stockData) {
                   return (
                     <div
@@ -741,7 +632,7 @@ const Watchlist = () => {
                         <span className="text-lg font-bold">{item.symbol}</span>
                         <span className="text-sm text-muted-foreground uppercase">{item.market}</span>
                       </div>
-                      <span className="text-sm text-muted-foreground">Loading...</span>
+                      <Loader2 className="animate-spin text-primary h-5 w-5" />
                     </div>
                   );
                 }
@@ -769,7 +660,6 @@ const Watchlist = () => {
                         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${rsiStatus.bg}`}>
                           <span 
                             className="text-base sm:text-lg font-bold truncate"
-                            title={`Added: ${new Date(item.added_at).toLocaleDateString()}`}
                           >
                             {stockData.symbol}
                           </span>
@@ -791,7 +681,7 @@ const Watchlist = () => {
 
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-xs uppercase text-muted-foreground font-medium hidden sm:inline">RSI</span>
-                        <span className={`text-base font-bold ${rsiStatus.color} ${rsiStatus.color.includes('emerald') ? 'animate-pulse' : ''}`}>
+                        <span className={`text-base font-bold ${rsiStatus.color}`}>
                           {stockData.rsi.toFixed(0)}
                         </span>
                         <span className={`text-sm font-medium ${rsiStatus.color} hidden sm:inline`}>
