@@ -11,6 +11,13 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    // ❌ REMOVE THIS ENTIRE proxy SECTION:
+    // proxy: {
+    //   '/api': {
+    //     target: 'http://localhost:3001',
+    //     changeOrigin: true,
+    //   },
+    // },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
@@ -19,12 +26,9 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    // Increase chunk size warning limit to 2MB
     chunkSizeWarningLimit: 2000,
-    // Let Vite handle chunk splitting automatically
     rollupOptions: {
       output: {
-        // Use automatic chunk splitting
         manualChunks: undefined,
       },
     },

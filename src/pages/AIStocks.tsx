@@ -17,7 +17,243 @@ import ReportActionBar from "@/components/ai-stocks/ReportActionBar";
 import { useStockData, type LiveStockData } from "@/hooks/useStockData";
 import { speakText, stopSpeaking } from "@/services/voiceService";
 import { detectStock } from "@/lib/stockDetector";
+// ── Stock Score Display Component ──
+const StockScoreDisplay = ({ score, lang }: { score: any; lang: LangKey }) => {
+  if (!score) return null;
+  
+  const isChinese = lang === 'tc' || lang === 'zh-TW' || lang === 'zh-CN';
+  const isTraditional = lang === 'tc' || lang === 'zh-TW';
+  
+  const getChinese = (traditional: string, simplified: string) => {
+    return isTraditional ? traditional : simplified;
+  };
+  
+  const categories = [
+    { key: 'trend', label: isChinese ? getChinese('趨勢', '趋势') : 'Trend', weight: 20 },
+    { key: 'momentum', label: isChinese ? getChinese('動量', '动量') : 'Momentum', weight: 15 },
+    { key: 'volume', label: 'Volume', weight: 15 },
+    { key: 'valuation', label: isChinese ? getChinese('估值', '估值') : 'Valuation', weight: 15 },
+    { key: 'fundamentals', label: isChinese ? getChinese('基本面', '基本面') : 'Fundamentals', weight: 20 },
+    { key: 'risk', label: isChinese ? getChinese('風險', '风险') : 'Risk', weight: 5 },
+    { key: 'market', label: isChinese ? getChinese('市場/板塊', '市场/板块') : 'Market/Sector', weight: 10 },
+  ];
 
+  const getRecommendationColor = (rec: string) => {
+    if (rec.includes('BUY')) return '#16A34A';
+    if (rec.includes('HOLD')) return '#F59E0B';
+    return '#DC2626';
+  };
+
+  const getRecommendationBg = (rec: string) => {
+    if (rec.includes('BUY')) return '#DCFCE7';
+    if (rec.includes('HOLD')) return '#FEF3C7';
+    return '#FEE2E2';
+  };
+
+  return (
+    <div style={{ 
+      backgroundColor: 'white', 
+      borderRadius: '12px', 
+      padding: '20px', 
+      marginBottom: '16px', 
+      border: '1px solid #E5E7EB',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+    }}>
+      {/* Header */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: '16px',
+        flexWrap: 'wrap',
+        gap: '12px'
+      }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '20px' }}>📊</span>
+            <h3 style={{ fontSize: '16px', fontWeight: 'bold', margin: 0 }}>
+              {isChinese ? getChinese('DragonGpAi 評分引擎', 'DragonGpAi 评分引擎') : 'DragonGpAi Score Engine'}
+            </h3>
+          </div>
+          <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '2px' }}>
+            {isChinese ? getChinese('綜合評分', '综合评分') : 'Overall Score'}: 
+            <span style={{ fontWeight: 'bold', fontSize: '22px', color: '#2563EB', marginLeft: '6px' }}>
+              {score.totalScore}
+            </span>
+            <span style={{ color: '#9CA3AF' }}>/100</span>
+          </div>
+        </div>
+        <div style={{ 
+          padding: '6px 16px', 
+          borderRadius: '20px', 
+          backgroundColor: getRecommendationBg(score.recommendation),
+          color: getRecommendationColor(score.recommendation),
+          fontWeight: 'bold',
+          fontSize: '14px',
+          border: `1px solid ${getRecommendationColor(score.recommendation)}`,
+        }}>
+          {score.recommendation}
+        </div>
+      </div>
+
+      {/* Categories */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {categories.map(({ key, label, weight }) => {
+          const data = score.scores[key];
+          if (!data) return null;
+          const percentage = Math.min((data.score / weight) * 100, 100);
+          
+          const barColor = percentage >= 80 ? '#22C55E' : percentage >= 60 ? '#F59E0B' : '#EF4444';
+          
+          return (
+            <div key={key}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                <span>
+                  <span style={{ marginRight: '4px' }}>{data.emoji}</span>
+                  {label}
+                  <span style={{ color: '#9CA3AF', fontSize: '11px', marginLeft: '4px' }}>({weight}%)</span>
+                </span>
+                <span style={{ fontWeight: 'bold' }}>{data.score.toFixed(1)}/{weight}</span>
+              </div>
+              <div style={{ 
+                width: '100%', 
+                height: '8px', 
+                backgroundColor: '#F3F4F6', 
+                borderRadius: '4px', 
+                overflow: 'hidden',
+                marginTop: '2px'
+              }}>
+                <div style={{ 
+                  width: `${percentage}%`, 
+                  height: '100%', 
+                  backgroundColor: barColor,
+                  borderRadius: '4px',
+                  transition: 'width 0.5s ease'
+                }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Risk Level */}
+      <div style={{ 
+        marginTop: '12px', 
+        display: 'flex', 
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '8px 12px',
+        backgroundColor: '#F8FAFC',
+        borderRadius: '8px',
+        fontSize: '12px'
+      }}>
+        <span style={{ color: '#6B7280' }}>
+          {isChinese ? getChinese('⚠️ 風險評級', '⚠️ 风险评级') : '⚠️ Risk Rating'}:
+        </span>
+        <span style={{ 
+          fontWeight: 'bold',
+          color: score.riskLevel === 'Low' || score.riskLevel === 'Low-Moderate' ? '#16A34A' :
+                 score.riskLevel === 'Moderate' ? '#F59E0B' : '#EF4444'
+        }}>
+          {score.riskLevel}
+        </span>
+      </div>
+
+      {/* Explanation */}
+      <div style={{ 
+        marginTop: '12px', 
+        padding: '12px 14px', 
+        backgroundColor: '#F0F9FF', 
+        borderRadius: '8px',
+        border: '1px solid #BAE6FD'
+      }}>
+        <p style={{ fontSize: '13px', color: '#1E293B', margin: 0, lineHeight: 1.5 }}>
+          <strong>{isChinese ? getChinese('💡 分析摘要', '💡 分析摘要') : '💡 Analysis Summary'}:</strong><br />
+          {score.explanation}
+        </p>
+      </div>
+    </div>
+  );
+};
+// ── Fallback score generator (when Edge Function fails) ──
+const generateFallbackScore = (symbol: string, stockData: any) => {
+  const rsi = stockData.rsi || 50;
+  const trend = stockData.trend || 'Sideways';
+  const macd = stockData.macd || 'Neutral';
+  const change = stockData.change || 0;
+  const pe = stockData.pe || null;
+  const roe = stockData.roe || null;
+  
+  // Calculate scores based on available data
+  let trendScore = trend === 'Uptrend' ? 16 : trend === 'Sideways' ? 10 : 5;
+  
+  let momentumScore = 0;
+  if (rsi >= 30 && rsi <= 50) momentumScore = 12;
+  else if (rsi > 50 && rsi <= 70) momentumScore = 9;
+  else if (rsi < 30) momentumScore = 10;
+  else if (rsi > 70) momentumScore = 3;
+  
+  if (macd === 'Bullish') momentumScore += 3;
+  else if (macd === 'Bearish') momentumScore -= 3;
+  momentumScore = Math.max(0, Math.min(15, momentumScore));
+  
+  const volumeScore = Math.abs(change) > 3 ? 10 : Math.abs(change) > 1 ? 7 : 5;
+  
+  let valuationScore = 7;
+  if (pe && pe > 0) {
+    if (pe < 15) valuationScore = 12;
+    else if (pe < 30) valuationScore = 8;
+    else valuationScore = 4;
+  }
+  
+  let fundamentalScore = 10;
+  if (roe && roe > 0) {
+    if (roe > 20) fundamentalScore = 16;
+    else if (roe > 10) fundamentalScore = 12;
+    else fundamentalScore = 6;
+  }
+  
+  const volatility = stockData.volatility || 0.3;
+  const riskScore = volatility < 0.25 ? 4.5 : volatility < 0.4 ? 3 : 1.5;
+  const marketScore = trend === 'Uptrend' ? 8 : trend === 'Sideways' ? 5 : 3;
+  
+  const totalScore = Math.round(
+    trendScore + momentumScore + volumeScore + valuationScore + fundamentalScore + riskScore + marketScore
+  );
+  const finalScore = Math.min(100, Math.max(0, totalScore));
+  
+  let recommendation: 'STRONG BUY' | 'BUY' | 'HOLD' | 'SELL' | 'STRONG SELL';
+  let riskLevel: 'Low' | 'Low-Moderate' | 'Moderate' | 'High' | 'Very High';
+  
+  if (finalScore >= 80) { recommendation = 'STRONG BUY'; riskLevel = 'Low'; }
+  else if (finalScore >= 65) { recommendation = 'BUY'; riskLevel = 'Low-Moderate'; }
+  else if (finalScore >= 50) { recommendation = 'HOLD'; riskLevel = 'Moderate'; }
+  else if (finalScore >= 35) { recommendation = 'SELL'; riskLevel = 'High'; }
+  else { recommendation = 'STRONG SELL'; riskLevel = 'Very High'; }
+  
+  const getEmoji = (score: number, max: number): '🟢' | '🟡' | '🔴' => {
+    const pct = score / max;
+    if (pct >= 0.7) return '🟢';
+    if (pct >= 0.45) return '🟡';
+    return '🔴';
+  };
+  
+  return {
+    totalScore: finalScore,
+    recommendation,
+    riskLevel,
+    scores: {
+      trend: { score: Math.min(trendScore, 20), maxScore: 20, emoji: getEmoji(trendScore, 20), details: [`Trend: ${trend}`] },
+      momentum: { score: Math.min(momentumScore, 15), maxScore: 15, emoji: getEmoji(momentumScore, 15), details: [`RSI: ${rsi.toFixed(1)}, MACD: ${macd}`] },
+      volume: { score: Math.min(volumeScore, 15), maxScore: 15, emoji: getEmoji(volumeScore, 15), details: [`Volume: ${Math.abs(change) > 3 ? 'High' : 'Moderate'}`] },
+      valuation: { score: Math.min(valuationScore, 15), maxScore: 15, emoji: getEmoji(valuationScore, 15), details: [`PE: ${pe ? pe.toFixed(1) + 'x' : 'N/A'}`] },
+      fundamentals: { score: Math.min(fundamentalScore, 20), maxScore: 20, emoji: getEmoji(fundamentalScore, 20), details: [`ROE: ${roe ? (roe * 100).toFixed(1) + '%' : 'N/A'}`] },
+      risk: { score: Math.min(riskScore, 5), maxScore: 5, emoji: getEmoji(riskScore, 5), details: [`Risk: ${riskScore >= 3.5 ? 'Low' : 'Moderate'}`] },
+      market: { score: Math.min(marketScore, 10), maxScore: 10, emoji: getEmoji(marketScore, 10), details: [`Market: ${trend === 'Uptrend' ? 'Strong' : 'Neutral'}`] }
+    },
+    explanation: `Score based on RSI ${rsi.toFixed(1)}, Trend ${trend}, MACD ${macd}. ${finalScore >= 65 ? 'Positive outlook with strong signals.' : finalScore >= 50 ? 'Mixed signals, wait for confirmation.' : 'Cautious outlook with weak signals.'}`
+  };
+};
 /* ── Markets ─────────────────────────────────── */
 const markets = [
   { key: "us", flag: "🇺🇸", label: { en: "US Market", tc: "美國市場", sc: "美国市场" } },
@@ -498,7 +734,7 @@ const AIStocks = () => {
   const { lang, setLang } = useLanguage();
   const t = labels[lang];
   const { user, subscription } = useAuth();
-  const { credits, loading: creditsLoading, deductCredits } = useCredits();
+  const { credits, loading: creditsLoading, deductCredits, refresh: refreshCredits } = useCredits();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -736,12 +972,6 @@ const handleLoadReport = async (ticker: string) => {
       setIsLoadingQuote(false);
       return;
     }
-    
-    // Refresh credits after a short delay to ensure the RPC is fully committed
-    // This prevents the race condition where the old balance is fetched
-    setTimeout(async () => {
-      await refreshCredits();
-    }, 300);
   }
 
   // 2. Fetch live data & build report
@@ -750,6 +980,43 @@ const handleLoadReport = async (ticker: string) => {
     if (liveData) {
       setCachedLiveData(liveData);
       const reportData = generateReportFromLiveData(ticker, lang, liveData);
+      // ⭐ Fetch stock score using direct fetch with anon key
+      try {
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const response = await fetch('https://htksnwkjvnpdyhjdadgw.supabase.co/functions/v1/stock-score', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${anonKey}`,
+          },
+          body: JSON.stringify({ 
+            symbol: ticker,
+            stockData: liveData,
+            language: lang
+          }),
+        });
+        
+        if (response.ok) {
+          const scoreData = await response.json();
+          if (scoreData.success && scoreData.stockScore) {
+            reportData.stockScore = scoreData.stockScore;
+            console.log('✅ Stock score loaded from Edge Function:', scoreData.stockScore.totalScore);
+          }
+        } else {
+          console.warn('Stock score API returned status:', response.status);
+          // Use fallback score
+          const fallbackScore = generateFallbackScore(ticker, liveData);
+          reportData.stockScore = fallbackScore;
+          console.log('📊 Using fallback score:', fallbackScore.totalScore);
+        }
+      } catch (scoreError) {
+        console.warn('Stock score not available, using fallback:', scoreError);
+        // Use fallback score
+        const fallbackScore = generateFallbackScore(ticker, liveData);
+        reportData.stockScore = fallbackScore;
+        console.log('📊 Using fallback score:', fallbackScore.totalScore);
+      }
+      
       setReport(reportData);
       setSearchParams({ symbol: ticker }, { replace: true });
 
@@ -928,105 +1195,110 @@ const handleLoadReport = async (ticker: string) => {
         )}
 
         {/* ── Report ────────────────────────── */}
-        {report && (
-          <section className="max-w-3xl w-full mx-auto px-6 mb-12 space-y-6">
-            <div className="flex flex-wrap items-center gap-2 p-3 bg-gold/10 rounded-lg border border-gold/20">
-              <span className="text-xs text-muted-foreground mr-1">🔊 {t.readAnalysis}:</span>
-              
-              <button
-                onClick={() => {
-                  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                  if (!SpeechRecognition) {
-                    toast({ title: "Speech recognition not supported in this browser", variant: "destructive" });
-                    return;
-                  }
-                  const recognition = new SpeechRecognition();
-                  recognition.lang = getVoiceLang();
-                  recognition.continuous = false;
-                  recognition.interimResults = true;
-                  recognition.onresult = (event: any) => {
-                    const transcript = Array.from(event.results)
-                      .map((result: any) => result[0])
-                      .map((result: any) => result.transcript)
-                      .join("");
-                    if (event.results[0].isFinal) {
-                      handleVoiceInput(transcript);
-                    }
-                  };
-                  recognition.start();
-                  toast({ title: "Listening... Speak the stock symbol", duration: 3000 });
-                }}
-                className="h-8 w-8 flex items-center justify-center rounded-md border border-gold/30 hover:bg-gold/20 transition-colors"
-                title="Voice input"
-              >
-                <Mic className="h-3.5 w-3.5" />
-              </button>
-              
-              <button
-                onClick={speakAnalysis}
-                className="h-8 w-8 flex items-center justify-center rounded-md border border-gold/30 hover:bg-gold/20 transition-colors"
-                title={isSpeaking ? "Stop speaking" : "Read analysis"}
-              >
-                {isSpeaking ? <VolumeX className="h-3.5 w-3.5 text-red-500" /> : <Volume2 className="h-3.5 w-3.5" />}
-              </button>
-              
-              <button
-                onClick={togglePause}
-                disabled={!isSpeaking}
-                className="h-8 w-8 flex items-center justify-center rounded-md border border-gold/30 hover:bg-gold/20 transition-colors disabled:opacity-50"
-                title={isPaused ? "Resume" : "Pause"}
-              >
-                {isPaused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
-              </button>
-              
-              <button
-                onClick={() => {
-                  stopSpeaking();
-                  setIsSpeaking(false);
-                  setIsPaused(false);
-                }}
-                disabled={!isSpeaking}
-                className="h-8 w-8 flex items-center justify-center rounded-md border border-gold/30 hover:bg-gold/20 transition-colors disabled:opacity-50"
-                title="Stop"
-              >
-                <Square className="h-3.5 w-3.5" />
-              </button>
-              
-              <span className="text-xs text-muted-foreground ml-1">
-                {isSpeaking ? (isPaused ? `⏸ ${t.pause}` : `🔊 ${t.speaking}`) : `🔇 ${t.readAnalysis}`}
-              </span>
-              <span className="text-xs text-muted-foreground ml-2 border-l border-muted pl-2">
-                {lang === 'tc' ? '廣東話' : lang === 'sc' ? '國語' : 'English'}
-              </span>
-            </div>
+{report && (
+  <section className="max-w-3xl w-full mx-auto px-6 mb-12 space-y-6">
+    <div className="flex flex-wrap items-center gap-2 p-3 bg-gold/10 rounded-lg border border-gold/20">
+      <span className="text-xs text-muted-foreground mr-1">🔊 {t.readAnalysis}:</span>
+      
+      <button
+        onClick={() => {
+          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if (!SpeechRecognition) {
+            toast({ title: "Speech recognition not supported in this browser", variant: "destructive" });
+            return;
+          }
+          const recognition = new SpeechRecognition();
+          recognition.lang = getVoiceLang();
+          recognition.continuous = false;
+          recognition.interimResults = true;
+          recognition.onresult = (event: any) => {
+            const transcript = Array.from(event.results)
+              .map((result: any) => result[0])
+              .map((result: any) => result.transcript)
+              .join("");
+            if (event.results[0].isFinal) {
+              handleVoiceInput(transcript);
+            }
+          };
+          recognition.start();
+          toast({ title: "Listening... Speak the stock symbol", duration: 3000 });
+        }}
+        className="h-8 w-8 flex items-center justify-center rounded-md border border-gold/30 hover:bg-gold/20 transition-colors"
+        title="Voice input"
+      >
+        <Mic className="h-3.5 w-3.5" />
+      </button>
+      
+      <button
+        onClick={speakAnalysis}
+        className="h-8 w-8 flex items-center justify-center rounded-md border border-gold/30 hover:bg-gold/20 transition-colors"
+        title={isSpeaking ? "Stop speaking" : "Read analysis"}
+      >
+        {isSpeaking ? <VolumeX className="h-3.5 w-3.5 text-red-500" /> : <Volume2 className="h-3.5 w-3.5" />}
+      </button>
+      
+      <button
+        onClick={togglePause}
+        disabled={!isSpeaking}
+        className="h-8 w-8 flex items-center justify-center rounded-md border border-gold/30 hover:bg-gold/20 transition-colors disabled:opacity-50"
+        title={isPaused ? "Resume" : "Pause"}
+      >
+        {isPaused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+      </button>
+      
+      <button
+        onClick={() => {
+          stopSpeaking();
+          setIsSpeaking(false);
+          setIsPaused(false);
+        }}
+        disabled={!isSpeaking}
+        className="h-8 w-8 flex items-center justify-center rounded-md border border-gold/30 hover:bg-gold/20 transition-colors disabled:opacity-50"
+        title="Stop"
+      >
+        <Square className="h-3.5 w-3.5" />
+      </button>
+      
+      <span className="text-xs text-muted-foreground ml-1">
+        {isSpeaking ? (isPaused ? `⏸ ${t.pause}` : `🔊 ${t.speaking}`) : `🔇 ${t.readAnalysis}`}
+      </span>
+      <span className="text-xs text-muted-foreground ml-2 border-l border-muted pl-2">
+        {lang === 'tc' ? '廣東話' : lang === 'sc' ? '國語' : 'English'}
+      </span>
+    </div>
 
-            <StockReport
-              report={report}
-              lang={lang}
-              inWatchlist={inWatchlist}
-              onAddWatchlist={handleAddWatchlist}
-              onSpeakAnalysis={speakAnalysis}
-              isSpeaking={isSpeaking}
-            />
-            
-            <ReportActionBar 
-              lang={lang} 
-              ticker={report.ticker} 
-              market={activeMarket} 
-              onReset={handleReset} 
-              inWatchlist={inWatchlist} 
-              onAddWatchlist={handleAddWatchlist}
-              voiceText={generateVoiceTextForShare(report, lang)}
-              companyName={report.companyName || ''}
-              price={report.price || ''}
-              priceChange={report.priceChange || ''}
-              probability={report.probability || 0}
-              recommendation={report.recommendation || ''}
-              rsi={report.rsi || 0}
-              rsiStatus={report.rsiStatus || ''}
-            />
-          </section>
-        )}
+    {/* ⭐ STOCK SCORE DISPLAY - ADD THIS HERE */}
+    {report.stockScore && (
+      <StockScoreDisplay score={report.stockScore} lang={lang} />
+    )}
+
+    <StockReport
+      report={report}
+      lang={lang}
+      inWatchlist={inWatchlist}
+      onAddWatchlist={handleAddWatchlist}
+      onSpeakAnalysis={speakAnalysis}
+      isSpeaking={isSpeaking}
+    />
+    
+    <ReportActionBar 
+      lang={lang} 
+      ticker={report.ticker} 
+      market={activeMarket} 
+      onReset={handleReset} 
+      inWatchlist={inWatchlist} 
+      onAddWatchlist={handleAddWatchlist}
+      voiceText={generateVoiceTextForShare(report, lang)}
+      companyName={report.companyName || ''}
+      price={report.price || ''}
+      priceChange={report.priceChange || ''}
+      probability={report.probability || 0}
+      recommendation={report.recommendation || ''}
+      rsi={report.rsi || 0}
+      rsiStatus={report.rsiStatus || ''}
+    />
+  </section>
+)}
 
         {/* ── Disclaimer bar ───────────────── */}
         <div className="max-w-3xl mx-auto px-6 mb-8">

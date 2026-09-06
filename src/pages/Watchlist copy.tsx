@@ -167,204 +167,6 @@ interface EnhancedStockData {
   error?: string;
 }
 
-// --- NEW: RSI Calculation with Exponential Smoothing ---
-function calculateRSI(prices: number[], period: number = 14): number | null {
-  if (!prices || prices.length < period + 1) return null;
-  
-  let gains = 0;
-  let losses = 0;
-  
-  // First average gain/loss
-  for (let i = 1; i <= period; i++) {
-    const diff = prices[i] - prices[i - 1];
-    if (diff >= 0) gains += diff;
-    else losses -= diff;
-  }
-  
-  let avgGain = gains / period;
-  let avgLoss = losses / period;
-  
-  // Smoothed RSI for remaining data (exponential smoothing)
-  for (let i = period + 1; i < prices.length; i++) {
-    const diff = prices[i] - prices[i - 1];
-    if (diff >= 0) {
-      avgGain = (avgGain * (period - 1) + diff) / period;
-      avgLoss = (avgLoss * (period - 1)) / period;
-    } else {
-      avgGain = (avgGain * (period - 1)) / period;
-      avgLoss = (avgLoss * (period - 1) - diff) / period;
-    }
-  }
-  
-  if (avgLoss === 0) return 100;
-  const rs = avgGain / avgLoss;
-  const rsiValue = 100 - (100 / (1 + rs));
-  
-  return Math.round(rsiValue * 10) / 10;
-}
-
-// --- NEW: Fetch historical data for RSI calculation ---
-async function fetchHistoricalData(symbol: string): Promise<number[] | null> {
-  try {
-    // Use Yahoo Finance API to get historical prices
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=3mo`;
-    
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-      },
-      cache: 'no-store'
-    });
-    
-    if (!response.ok) {
-      console.error(`Failed to fetch historical data for ${symbol}: ${response.status}`);
-      return null;
-    }
-    
-    const data = await response.json();
-    const result = data.chart?.result?.[0];
-    
-    if (!result) {
-      console.error(`No data for ${symbol}`);
-      return null;
-    }
-    
-    const closes = result.indicators?.quote?.[0]?.close || [];
-    const validCloses = closes.filter((c: number) => c !== null && c > 0);
-    
-    if (validCloses.length === 0) {
-      console.error(`No valid closes for ${symbol}`);
-      return null;
-    }
-    
-    console.log(`📊 ${symbol}: Found ${validCloses.length} price points for RSI calculation`);
-    return validCloses;
-  } catch (error) {
-    console.error(`Error fetching historical data for ${symbol}:`, error);
-    return null;
-  }
-}
-
-// --- NEW: Fetch live stock data with proper RSI ---
-async function fetchStockDataWithRSI(symbol: string): Promise<any> {
-  try {
-    // Fetch both live data and historical data
-    const [liveResponse, historicalPrices] = await Promise.all([
-      fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'application/json',
-        },
-        cache: 'no-store'
-      }),
-      fetchHistoricalData(symbol)
-    ]);
-    
-    if (!liveResponse.ok) {
-      console.error(`Failed to fetch live data for ${symbol}`);
-      return null;
-    }
-    
-    const liveData = await liveResponse.json();
-    const result = liveData.chart?.result?.[0];
-    
-    if (!result) {
-      console.error(`No live data for ${symbol}`);
-      return null;
-    }
-    
-    const meta = result.meta;
-    const closes = result.indicators?.quote?.[0]?.close || [];
-    const validCloses = closes.filter((c: number) => c !== null && c > 0);
-    
-    const price = meta.regularMarketPrice || validCloses[validCloses.length - 1] || 0;
-    
-    // Calculate previous close from data
-    let prevClose = null;
-    if (validCloses.length >= 2) {
-      prevClose = validCloses[validCloses.length - 2];
-    }
-    if (!prevClose) {
-      prevClose = meta.regularMarketPreviousClose || meta.previousClose || price;
-    }
-    
-    const change = price - prevClose;
-    const changePercent = prevClose ? (change / prevClose) * 100 : 0;
-    
-    // --- FIX: Calculate RSI from historical data ---
-    let rsi = 50; // Default
-    let rsiStatus = "Neutral";
-    
-    if (historicalPrices && historicalPrices.length >= 15) {
-      rsi = calculateRSI(historicalPrices, 14);
-      if (rsi !== null) {
-        rsi = Math.round(rsi * 10) / 10;
-        console.log(`📊 ${symbol}: Calculated RSI = ${rsi} from ${historicalPrices.length} prices`);
-      }
-    } else {
-      console.log(`📊 ${symbol}: Using fallback RSI calculation (insufficient historical data)`);
-      // Fallback: estimate RSI from price change
-      if (changePercent > 5) rsi = 70;
-      else if (changePercent > 2) rsi = 60;
-      else if (changePercent < -5) rsi = 30;
-      else if (changePercent < -2) rsi = 40;
-      else rsi = 50;
-    }
-    
-    // Determine RSI status
-    if (rsi > 70) rsiStatus = "Overbought";
-    else if (rsi < 30) rsiStatus = "Oversold";
-    else rsiStatus = "Neutral";
-    
-    // Calculate MACD
-    let macdStatus = "Neutral";
-    if (historicalPrices && historicalPrices.length >= 26) {
-      // Calculate MACD from historical data
-      const ema12 = historicalPrices.slice(-12).reduce((a, b) => a + b, 0) / 12;
-      const ema26 = historicalPrices.slice(-26).reduce((a, b) => a + b, 0) / 26;
-      const macd = ema12 - ema26;
-      const signal = historicalPrices.slice(-9).reduce((a, b) => a + b, 0) / 9;
-      
-      if (macd > signal) macdStatus = "Bullish";
-      else if (macd < signal) macdStatus = "Bearish";
-      else macdStatus = "Neutral";
-    } else {
-      // Fallback: estimate from price change
-      if (changePercent > 3) macdStatus = "Bullish";
-      else if (changePercent < -3) macdStatus = "Bearish";
-      else macdStatus = "Neutral";
-    }
-    
-    // Calculate probability and recommendation
-    const probability = Math.min(95, Math.max(5, 50 + (50 - rsi) * 0.8));
-    let recommendation = "Hold";
-    if (rsi < 30) recommendation = "Buy";
-    else if (rsi > 70) recommendation = "Sell";
-    else if (rsi < 40 && changePercent > 0) recommendation = "Buy";
-    else if (rsi > 60 && changePercent < 0) recommendation = "Sell";
-    
-    console.log(`✅ ${symbol}: RSI=${rsi}, Status=${rsiStatus}, MACD=${macdStatus}`);
-    
-    return {
-      symbol: symbol,
-      name: meta.longName || meta.shortName || symbol,
-      price: price,
-      change: changePercent,
-      rsi: rsi,
-      rsiStatus: rsiStatus,
-      macdStatus: macdStatus,
-      probability: Math.round(probability),
-      recommendation: recommendation,
-      priceChange: `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`,
-      priceUp: changePercent >= 0,
-    };
-  } catch (error) {
-    console.error(`Error fetching ${symbol}:`, error);
-    return null;
-  }
-}
-
 const Watchlist = () => {
   const { lang } = useLanguage();
   const t = labels[lang];
@@ -418,101 +220,78 @@ const Watchlist = () => {
     setIsRefreshing(true);
     const results: Record<string, EnhancedStockData> = {};
     
-    // Fetch all stocks with proper RSI calculation
+    // Fetch all stocks without credit check
     for (const item of watchlistData) {
       try {
-        const data = await fetchStockDataWithRSI(item.symbol);
+        const liveData = await fetchStockData(item.symbol);
         
-        if (data) {
+        if (liveData) {
+          let rsi = 50;
+          let rsiStatus = "Neutral";
+          
+          if (liveData.rsi !== null && liveData.rsi !== undefined && !isNaN(liveData.rsi)) {
+            rsi = Math.round(liveData.rsi * 10) / 10;
+          } else {
+            const change = liveData.change || 0;
+            rsi = 50 + (change > 0 ? Math.min(change * 2, 45) : Math.max(change * 2, -45));
+            rsi = Math.max(0, Math.min(100, Math.round(rsi * 10) / 10));
+          }
+
+          if (rsi > 70) rsiStatus = "Overbought";
+          else if (rsi < 30) rsiStatus = "Oversold";
+          else rsiStatus = "Neutral";
+
+          let macdStatus = "Neutral";
+          if (liveData.macdHistogram !== null && liveData.macdHistogram !== undefined) {
+            const hist = liveData.macdHistogram;
+            if (hist > 0.3) macdStatus = "Bullish";
+            else if (hist < -0.3) macdStatus = "Bearish";
+            else macdStatus = "Neutral";
+          } else {
+            const change = liveData.change || 0;
+            if (Math.abs(change) > 3) {
+              macdStatus = change > 0 ? "Bullish" : "Bearish";
+            }
+          }
+
+          const probability = Math.min(95, Math.max(5, 50 + (50 - rsi) * 0.8));
+
+          let recommendation = "Hold";
+          if (rsi < 30) recommendation = "Buy";
+          else if (rsi > 70) recommendation = "Sell";
+          else if (rsi < 40 && (liveData.change || 0) > 0) recommendation = "Buy";
+          else if (rsi > 60 && (liveData.change || 0) < 0) recommendation = "Sell";
+
           results[item.symbol] = {
-            symbol: data.symbol,
-            name: data.name || item.symbol,
-            price: data.price || 0,
-            priceChange: data.priceChange || '0.00%',
-            priceUp: data.priceUp || false,
-            rsi: data.rsi || 50,
-            rsiStatus: data.rsiStatus || 'Neutral',
-            macdStatus: data.macdStatus || 'Neutral',
-            probability: data.probability || 50,
-            recommendation: data.recommendation || 'Hold',
+            symbol: liveData.symbol,
+            name: liveData.name || item.symbol,
+            price: liveData.price || 0,
+            priceChange: `${((liveData.change || 0) >= 0 ? '+' : '')}${(liveData.change || 0).toFixed(2)}%`,
+            priceUp: (liveData.change || 0) >= 0,
+            rsi,
+            rsiStatus,
+            macdStatus,
+            probability: Math.round(probability),
+            recommendation,
             market: item.market || 'US',
             loading: false,
           };
         } else {
-          // Fallback with proper RSI calculation if API fails
-          const fallbackData = await fetchStockData(item.symbol);
-          if (fallbackData) {
-            let rsi = 50;
-            let rsiStatus = "Neutral";
-            
-            // Try to calculate RSI from available data
-            if (fallbackData.rsi !== null && fallbackData.rsi !== undefined && !isNaN(fallbackData.rsi)) {
-              rsi = Math.round(fallbackData.rsi * 10) / 10;
-            } else {
-              // Estimate from price change
-              const change = fallbackData.change || 0;
-              if (change > 5) rsi = 70;
-              else if (change > 2) rsi = 60;
-              else if (change < -5) rsi = 30;
-              else if (change < -2) rsi = 40;
-              else rsi = 50;
-            }
-
-            if (rsi > 70) rsiStatus = "Overbought";
-            else if (rsi < 30) rsiStatus = "Oversold";
-            else rsiStatus = "Neutral";
-
-            let macdStatus = "Neutral";
-            if (fallbackData.macdHistogram !== null && fallbackData.macdHistogram !== undefined) {
-              const hist = fallbackData.macdHistogram;
-              if (hist > 0.3) macdStatus = "Bullish";
-              else if (hist < -0.3) macdStatus = "Bearish";
-              else macdStatus = "Neutral";
-            } else {
-              const change = fallbackData.change || 0;
-              if (change > 3) macdStatus = "Bullish";
-              else if (change < -3) macdStatus = "Bearish";
-              else macdStatus = "Neutral";
-            }
-
-            const probability = Math.min(95, Math.max(5, 50 + (50 - rsi) * 0.8));
-            let recommendation = "Hold";
-            if (rsi < 30) recommendation = "Buy";
-            else if (rsi > 70) recommendation = "Sell";
-            else if (rsi < 40 && (fallbackData.change || 0) > 0) recommendation = "Buy";
-            else if (rsi > 60 && (fallbackData.change || 0) < 0) recommendation = "Sell";
-
-            results[item.symbol] = {
-              symbol: fallbackData.symbol,
-              name: fallbackData.name || item.symbol,
-              price: fallbackData.price || 0,
-              priceChange: `${((fallbackData.change || 0) >= 0 ? '+' : '')}${(fallbackData.change || 0).toFixed(2)}%`,
-              priceUp: (fallbackData.change || 0) >= 0,
-              rsi,
-              rsiStatus,
-              macdStatus,
-              probability: Math.round(probability),
-              recommendation,
-              market: item.market || 'US',
-              loading: false,
-            };
-          } else {
-            results[item.symbol] = {
-              symbol: item.symbol,
-              name: item.symbol,
-              price: 0,
-              priceChange: '0.00%',
-              priceUp: false,
-              rsi: 50,
-              rsiStatus: 'Neutral',
-              macdStatus: 'Neutral',
-              probability: 50,
-              recommendation: 'Hold',
-              market: item.market || 'US',
-              loading: false,
-              error: 'No data available',
-            };
-          }
+          results[item.symbol] = {
+            symbol: item.symbol,
+            name: item.symbol,
+            price: 0,
+            priceChange: '0.00%',
+            priceUp: false,
+            rsi: 50,
+            rsiStatus: 'Neutral',
+            macdStatus: 'Neutral',
+            probability: 50,
+            recommendation: 'Hold',
+            market: item.market || 'US',
+            loading: false,
+            error: 'No data available',
+          };
         }
       } catch (error) {
         console.error(`Error fetching ${item.symbol}:`, error);
@@ -691,7 +470,6 @@ const Watchlist = () => {
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-background to-secondary/10">
       <Header />
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6">
-        {/* ... rest of the JSX remains the same ... */}
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-primary/10 rounded-2xl blur-3xl -z-10" />
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

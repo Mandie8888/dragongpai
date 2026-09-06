@@ -523,6 +523,22 @@ export interface ReportData {
   confidenceScore?: number;
   trend?: string;
   riskTierLabel?: string;
+  // ⭐ ADD THIS:
+  stockScore?: {
+    totalScore: number;
+    recommendation: 'STRONG BUY' | 'BUY' | 'HOLD' | 'SELL' | 'STRONG SELL';
+    riskLevel: 'Low' | 'Low-Moderate' | 'Moderate' | 'High' | 'Very High';
+    scores: {
+      trend: { score: number; maxScore: number; emoji: '🟢' | '🟡' | '🔴'; details: string[] };
+      momentum: { score: number; maxScore: number; emoji: '🟢' | '🟡' | '🔴'; details: string[] };
+      volume: { score: number; maxScore: number; emoji: '🟢' | '🟡' | '🔴'; details: string[] };
+      valuation: { score: number; maxScore: number; emoji: '🟢' | '🟡' | '🔴'; details: string[] };
+      fundamentals: { score: number; maxScore: number; emoji: '🟢' | '🟡' | '🔴'; details: string[] };
+      risk: { score: number; maxScore: number; emoji: '🟢' | '🟡' | '🔴'; details: string[] };
+      market: { score: number; maxScore: number; emoji: '🟢' | '🟡' | '🔴'; details: string[] };
+    };
+    explanation: string;
+  };
 }
 
 /* ── Section helpers ──────────────────────────── */
